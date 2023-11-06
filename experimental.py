@@ -1,0 +1,178 @@
+from sqlalchemy import Column, Integer, MetaData, Table, create_engine, inspect, text, update, delete, select,insert
+from sqlalchemy_utils import create_database, database_exists, drop_database
+
+USER = "root"
+PASSWORD = "MYmac123"
+HOSTNAME = "localhost"
+METADATA = MetaData()
+URL = f"mysql+pymysql://{USER}:{PASSWORD}@{HOSTNAME}"
+
+
+def show_databases(url: str):
+    try:
+        engine = create_engine(url)
+        inspector = inspect(engine)
+        return inspector.get_schema_names()
+    except Exception as exception:
+        return exception
+
+# DDL
+def create_database_function(database: str):
+    """Create database"""
+    try:
+        engine = create_engine(URL)
+        connection = engine.connect()
+        if not database_exists(URL + f"/{database}"):
+            connection.execute(create_database(URL + f"/{database}"))
+            return {"Ok": "Database Created!"}
+        else:
+            return {"Already Exists!": "Database Already Exists!"}
+    except Exception as exception:
+        return (None, exception)
+
+
+def delete_database_function(database: str):
+    """Delete Database"""
+    try:
+        engine = create_engine(URL)
+        connection = engine.connect()
+        if database_exists(URL + f"/{database}"):
+            value = connection.execute(drop_database(URL + f"/{database}"))
+            if value is None:
+                return {"Ok": "Database Deleted!"}
+        else:
+            return {"Doesn't Exist!": "Database doesn't Exist!"}
+    except Exception as exception:
+        return exception
+
+
+def create_tables(database: str, *table_names: str):
+    """Create Tables in a database"""
+    try:
+        engine = create_engine(URL + f"/{database}", echo=True)
+        inspector = inspect(engine)
+        if database_exists(URL + f"/{database}"):
+            for table_name in table_names:
+                if table_name not in inspector.get_table_names():
+                    update(table_name, )
+                    table_name = Table(
+                        f"{table_name}",
+                        METADATA,
+                        Column("Id", Integer, primary_key=True),
+                    )
+                    table_name.create(bind=engine)
+                else:
+                    return "Table already exists!"
+        else:
+            return {"Error!": "Database Does not exist!"}
+    except Exception as exception:
+        return exception
+
+
+def delete_tables(database: str, *table_names: str):
+    """Delete Tables in a database"""
+    try:
+        engine = create_engine(URL + f"/{database}")
+        inspector = inspect(engine)
+        if database_exists(URL + f"/{database}"):
+            for table in table_names:
+                if table in inspector.get_table_names():
+                    table = Table(
+                        f"{table}",
+                        MetaData(bind=engine),
+                        autoload=True,
+                        autoload_with=engine,
+                    )
+                    table.drop(bind=engine)
+                else:
+                    return "Tables don't exist!"
+        else:
+            return "database doesn't exist!"
+    except Exception as exception:
+        return exception
+
+
+def insert_columns(
+    database: str,
+    table_name: str,
+    column_name: str,
+    datatype: str,
+    size: str,
+):
+    """Insert columns in a table in a database"""
+    try:
+        engine = create_engine(URL + f"/{database}")
+        inspector = inspect(engine)
+        if database_exists(URL + f"/{database}") and table_name in inspector.get_table_names():
+            sqlalchemy_command = insert(table=table_name,)
+            command = text(f"ALTER TABLE `{table_name}` ADD COLUMN {column_name} {datatype}({size})")
+            engine.execute(command)
+            print("Successfully inserted columns!")
+        else:
+            print("Error")
+    except Exception as exception:
+        print(exception)
+
+    except Exception as exception:
+        return exception
+
+def delete_columns(database: str, table_name: str, column_name: str):
+    """ "Delete columns in a database"""
+
+    try:
+        engine = create_engine(URL + f"/{database}")
+        inspector = inspect(engine)
+        if database_exists(URL + f"/{database}"):
+            if table_name in inspector.get_table_names():
+                command = text(f"ALTER TABLE `{table_name}` DROP COLUMN {column_name}")
+                engine.execute(command)
+            else:
+                return {"Error": "Table does not exist!"}
+        else:
+            return {"Error": "Database does not exist!"}
+    except Exception as exception:
+        return exception
+
+def modify_column(database: str, table_name: str, column_name: str, command: str):
+    """Modify columns in a database"""
+    try:
+        engine = create_engine(URL + f"/{database}")
+        inspector = inspect(engine)
+        if database_exists(URL + f"{database}"):
+            if table_name in inspector.get_table_names():
+                command = text(f"ALTER TABLE `{table_name}` MODIFY {column_name} {command}")
+                engine.execute(command)
+            else:
+                return "table doesn't exist"
+        else:
+            return "Database doesn't exist"
+    except Exception as exception:
+        return exception
+
+def get_table_names(database: str):
+    """Get table names in a database"""
+    try:
+        engine = create_engine(URL + f"/{database}")
+        inspector = inspect(engine)
+        return engine.execute(inspector.get_table_names()).fetchall()
+    except Exception as exception:
+        return exception
+
+def update_table(database: str, table_name:Table, *column_values: str):
+    try:
+        engine = create_engine(URL+f"/{database}")
+        inspector = inspect(engine)
+        if database_exists(URL+f'/{database}') and table_name in inspector.get_table_names():
+            columns = engine.execute(f"SHOW COLUMNS IN {table_name}").fetchall()
+            for value in column_values:
+                for column in columns:
+                    command = f"UPDATE {table_name}({column}) SET VALUES({value})"
+            engine.execute(command)
+            print("tables updated")
+        else:
+            print("table doesn't exist")
+    except Exception as exception:
+        return exception
+
+if __name__ == "__main__":
+    pass
