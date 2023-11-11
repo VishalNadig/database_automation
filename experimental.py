@@ -9,6 +9,18 @@ URL = f"mysql+pymysql://{USER}:{PASSWORD}@{HOSTNAME}"
 
 
 def show_databases(url: str):
+    """
+    Retrieves a list of all the databases available in the specified URL.
+
+    Parameters:
+        url (str): The URL of the database.
+
+    Returns:
+        list: A list of strings, where each string represents the name of a database.
+
+    Raises:
+        Exception: If there is an error retrieving the database list.
+    """
     try:
         engine = create_engine(url)
         inspector = inspect(engine)
@@ -18,7 +30,19 @@ def show_databases(url: str):
 
 # DDL
 def create_database_function(database: str):
-    """Create database"""
+    """
+    Create a database function.
+
+    Parameters:
+        database (str): The name of the database to be created.
+
+    Returns:
+        dict or tuple: If the database is created successfully, returns a dictionary
+        with the key "Ok" and value "Database Created!". If the database already
+        exists, returns a dictionary with the key "Already Exists!" and value
+        "Database Already Exists!". If an exception occurs, returns a tuple with
+        None as the first element and the exception as the second element.
+    """
     try:
         engine = create_engine(URL)
         connection = engine.connect()
@@ -32,7 +56,15 @@ def create_database_function(database: str):
 
 
 def delete_database_function(database: str):
-    """Delete Database"""
+    """
+    Delete a database.
+
+    Args:
+        database (str): The name of the database to be deleted.
+
+    Returns:
+        dict or Exception: If the database is successfully deleted, the function returns a dictionary with the key "Ok" and the value "Database Deleted!". If the database doesn't exist, the function returns a dictionary with the key "Doesn't Exist!" and the value "Database doesn't Exist!". If an exception occurs during the deletion process, the function returns the exception object.
+    """
     try:
         engine = create_engine(URL)
         connection = engine.connect()
@@ -47,7 +79,19 @@ def delete_database_function(database: str):
 
 
 def create_tables(database: str, *table_names: str):
-    """Create Tables in a database"""
+    """
+    Create tables in the specified database.
+
+    Args:
+        database (str): The name of the database to create tables in.
+        *table_names (str): Variable length argument list of table names.
+
+    Returns:
+        str or dict: If the tables are created successfully, returns "Table already exists!" 
+        if the table already exists. If the database does not exist, returns a dictionary 
+        with the key "Error!" and the value "Database Does not exist!". If an exception occurs, 
+        returns the exception object.
+    """
     try:
         engine = create_engine(URL + f"/{database}", echo=True)
         inspector = inspect(engine)
@@ -70,7 +114,19 @@ def create_tables(database: str, *table_names: str):
 
 
 def delete_tables(database: str, *table_names: str):
-    """Delete Tables in a database"""
+    """
+    Deletes the specified tables from the given database.
+
+    Args:
+        database (str): The name of the database.
+        *table_names (str): The names of the tables to be deleted.
+
+    Returns:
+        str: A message indicating the success or failure of the operation. 
+
+    Raises:
+        Exception: If an error occurs during the deletion process.
+    """
     try:
         engine = create_engine(URL + f"/{database}")
         inspector = inspect(engine)
@@ -99,7 +155,23 @@ def insert_columns(
     datatype: str,
     size: str,
 ):
-    """Insert columns in a table in a database"""
+    """
+    Inserts a new column into a specified table in the given database.
+
+    Args:
+        database (str): The name of the database to insert the column into.
+        table_name (str): The name of the table to insert the column into.
+        column_name (str): The name of the new column.
+        datatype (str): The data type of the new column.
+        size (str): The size of the new column.
+
+    Returns:
+        None
+
+    Raises:
+        Exception: If there is an error inserting the column.
+    """
+
     try:
         engine = create_engine(URL + f"/{database}")
         inspector = inspect(engine)
@@ -117,7 +189,20 @@ def insert_columns(
         return exception
 
 def delete_columns(database: str, table_name: str, column_name: str):
-    """ "Delete columns in a database"""
+    """
+    Deletes a column from a specified table in a given database.
+
+    Args:
+        database (str): The name of the database.
+        table_name (str): The name of the table.
+        column_name (str): The name of the column to be deleted.
+
+    Returns:
+        dict or Exception: If the column is successfully deleted, returns an empty dictionary.
+                          If the table does not exist, returns a dictionary with the error message "Table does not exist!".
+                          If the database does not exist, returns a dictionary with the error message "Database does not exist!".
+                          If an exception occurs during the deletion process, returns the exception object.
+    """
 
     try:
         engine = create_engine(URL + f"/{database}")
@@ -134,7 +219,20 @@ def delete_columns(database: str, table_name: str, column_name: str):
         return exception
 
 def modify_column(database: str, table_name: str, column_name: str, command: str):
-    """Modify columns in a database"""
+    """
+    Modify a column in a database table.
+
+    Args:
+        database (str): The name of the database.
+        table_name (str): The name of the table where the column exists.
+        column_name (str): The name of the column to be modified.
+        command (str): The modification command to be executed.
+
+    Returns:
+        str: If successful, returns an empty string. If the table doesn't exist, 
+        returns "table doesn't exist". If the database doesn't exist, returns 
+        "Database doesn't exist". If an exception occurs, returns the exception object.
+    """
     try:
         engine = create_engine(URL + f"/{database}")
         inspector = inspect(engine)
@@ -150,7 +248,19 @@ def modify_column(database: str, table_name: str, column_name: str, command: str
         return exception
 
 def get_table_names(database: str):
-    """Get table names in a database"""
+    """
+    Retrieves the names of all tables in the specified database.
+
+    Args:
+        database (str): The name of the database.
+
+    Returns:
+        list: A list of table names in the database.
+
+    Raises:
+        Exception: If an error occurs while retrieving the table names.
+    """
+
     try:
         engine = create_engine(URL + f"/{database}")
         inspector = inspect(engine)
@@ -159,6 +269,17 @@ def get_table_names(database: str):
         return exception
 
 def update_table(database: str, table_name:Table, *column_values: str):
+    """
+    Updates a table in a database with the provided column values.
+
+    Args:
+        database (str): The name of the database.
+        table_name (Table): The name of the table to update.
+        *column_values (str): The values to update the table with.
+
+    Returns:
+        Exception: Returns an exception if an error occurs during the update.
+    """
     try:
         engine = create_engine(URL+f"/{database}")
         inspector = inspect(engine)

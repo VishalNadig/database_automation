@@ -8,6 +8,16 @@ METADATA = MetaData()
 URL = f"mysql+pymysql://{USER}:{PASSWORD}@{HOSTNAME}"
 
 def create_database_function(database: str):
+    """
+    Create a database function.
+
+    Args:
+        database (str): The name of the database to be created.
+
+    Returns:
+        dict: A dictionary containing the status of the database creation. If the database is created successfully, the dictionary will have the key "Ok" and the value "Database Created!". If the database already exists, the dictionary will have the key "Already Exists!" and the value "Database Already Exists!".
+        tuple: If an exception occurs during the creation of the database, a tuple with None as the first element and the exception as the second element will be returned.
+    """
     try:
         engine = create_engine(URL)
         connection = engine.connect()
@@ -20,6 +30,17 @@ def create_database_function(database: str):
         return(None, exception)
 
 def delete_database_function(database: str):
+    """
+    Deletes a database with the given name.
+
+    Args:
+        database (str): The name of the database to be deleted.
+
+    Returns:
+        dict or Exception: A dictionary with the keys "Ok" and "Database Deleted!" if the database is successfully deleted.
+        If the database doesn't exist, a dictionary with the keys "Doesn't Exist!" and "Database doesn't Exist!" is returned.
+        If an exception occurs during the deletion process, the exception object is returned.
+    """
     try:
         engine = create_engine(URL)
         connection = engine.connect()
@@ -33,6 +54,19 @@ def delete_database_function(database: str):
         return(exception)
 
 def create_tables(database: str,*table_names: str):
+    """
+    Creates tables in a given database.
+
+    Args:
+        database (str): The name of the database.
+        *table_names (str): Variable length argument list of table names.
+
+    Returns:
+        str or dict: If the tables are created successfully, returns "Table already exists!" if the table already exists, or returns a dictionary with the error message "Database Does not exist!" if the database does not exist. If an exception occurs, returns the exception object.
+
+    Raises:
+        None
+    """
     try:
         engine = create_engine(URL+f"/{database}", echo= True)
         inspector = inspect(engine)
@@ -51,6 +85,18 @@ def create_tables(database: str,*table_names: str):
         return exception
 
 def delete_tables(database: str, *table_names: str):
+    """
+    Deletes specified tables from a given database.
+
+    Args:
+        database (str): The name of the database.
+        *table_names (str): Variable number of table names to be deleted.
+
+    Returns:
+        str: Returns "Tables don't exist!" if any of the specified tables don't exist in the database.
+             Returns "database doesn't exist!" if the specified database doesn't exist.
+             Returns the exception if any other error occurs during the deletion process.
+    """
     try:
         engine = create_engine(URL+f"/{database}")
         inspector = inspect(engine)
@@ -67,6 +113,21 @@ def delete_tables(database: str, *table_names: str):
         return exception
 
 def insert_columns(database: str, table_name: str,  column_name: str, datatype: str, size: str, command: str):
+    """
+    Inserts columns into a table in a database.
+
+    Parameters:
+        - database (str): The name of the database.
+        - table_name (str): The name of the table.
+        - column_name (str): The name of the column to be inserted.
+        - datatype (str): The datatype of the column.
+        - size (str): The size of the column.
+        - command (str): Additional command to be executed.
+
+    Returns:
+        - str: A success message if the columns were inserted successfully.
+        - Exception: An exception object if an error occurred during the operation.
+    """
     try:
         engine = create_engine(URL+f"/{database}")
         inpsector = inspect(engine)
@@ -91,6 +152,20 @@ def insert_columns(database: str, table_name: str,  column_name: str, datatype: 
         #     return{"Error":"Database does not exist!"}
 
 def delete_columns(database: str, table_name: str, column_name: str):
+    """
+    Deletes a column from a table in a specified database.
+
+    Args:
+        database (str): The name of the database.
+        table_name (str): The name of the table.
+        column_name (str): The name of the column to be deleted.
+
+    Returns:
+        dict or Exception: If successful, returns an empty dictionary. If the table or database does not exist, returns an error dictionary. If there is an exception, returns the exception object.
+
+    Raises:
+        None
+    """
 
     try:
         engine = create_engine(URL+f"/{database}")
@@ -107,6 +182,21 @@ def delete_columns(database: str, table_name: str, column_name: str):
         return exception
 
 def modify_column(database: str, table_name: str, column_name: str, command: str):
+    """
+    Modifies a column in a specified table of a given database.
+
+    Parameters:
+        database (str): The name of the database.
+        table_name (str): The name of the table.
+        column_name (str): The name of the column to be modified.
+        command (str): The modification command to be executed.
+
+    Returns:
+        str: A message indicating the status of the modification.
+            - If the table doesn't exist, returns "table doesn't exist".
+            - If the database doesn't exist, returns "Database doesn't exist".
+            - If an exception occurs, returns the exception message.
+    """
     try:
         engine = create_engine(URL+f"/{database}")
         inspector = inspect(engine)
@@ -122,6 +212,20 @@ def modify_column(database: str, table_name: str, column_name: str, command: str
         return exception
 
 def inspect_columns(database: str, table, *column: str):
+    """
+    Inspects the columns of a database table.
+
+    :param database: The name of the database.
+    :param table: The name of the table to inspect.
+    :param column: Variable length argument representing the columns to retrieve. 
+                   If no columns are specified, all columns will be retrieved.
+
+    :return: If the table exists in the database, returns a list of columns in the table. 
+             If the table exists and columns are specified, returns the data from the specified columns. 
+             If the table doesn't exist, returns the string "Table doesn't Exist!".
+             If the database doesn't exist, returns the string "Database doesn't exist".
+             If any exception occurs during execution, returns the exception object.
+    """
     try:
         engine = create_engine(URL+ f"/{database}")
         inspector = inspect(engine)
@@ -139,6 +243,17 @@ def inspect_columns(database: str, table, *column: str):
         return exception
 
 def query(database: str, table_name: str, filter_condition: str):
+    """
+    Executes a SQL query on a specified database table with a filter condition.
+
+    Args:
+        database (str): The name of the database to query.
+        table_name (str): The name of the table to query.
+        filter_condition (str): The filter condition to apply to the query.
+
+    Returns:
+        Exception or None: If an error occurs during the query execution, the exception is returned. Otherwise, None is returned.
+    """
     try:
         engine = create_engine(URL+ f"/{database}")
         inspector = inspect(engine)
