@@ -21,13 +21,12 @@ def create_database_function(database: str):
     try:
         engine = create_engine(URL)
         connection = engine.connect()
-        if not database_exists(URL+f"/{database}"):
-            connection.execute(create_database(URL+f"/{database}"))
+        if not database_exists(URL + f"/{database}"):
+            connection.execute(create_database(URL + f"/{database}"))
             return {"Ok": "Database Created!"}
-        else:
-            return {"Already Exists!": "Database Already Exists!"}
+        return {"Already Exists!": "Database Already Exists!"}
     except Exception as exception:
-        return(None, exception)
+        return (None, exception)
 
 def delete_database_function(database: str):
     """
@@ -37,119 +36,72 @@ def delete_database_function(database: str):
         database (str): The name of the database to be deleted.
 
     Returns:
-        dict or Exception: A dictionary with the keys "Ok" and "Database Deleted!" if the database is successfully deleted.
-        If the database doesn't exist, a dictionary with the keys "Doesn't Exist!" and "Database doesn't Exist!" is returned.
+        dict or Exception: A dictionary with the keys "Ok" and "Database Deleted!"
+        if the database is successfully deleted.
+        If the database doesn't exist, a dictionary with the keys "Doesn't Exist!"
+        and "Database doesn't Exist!" is returned.
         If an exception occurs during the deletion process, the exception object is returned.
     """
     try:
-        engine = create_engine(URL)
-        connection = engine.connect()
-        if database_exists(URL+f"/{database}"):
-            value = connection.execute(drop_database(URL+f"/{database}"))
-            if value is None:
-                return({"Ok": "Database Deleted!"})
-        else:
-            return({"Doesn't Exist!": "Database doesn't Exist!"})
+        with create_engine(URL).connect() as connection:
+            if database_exists(URL + f"/{database}"):
+                connection.execute(drop_database(URL + f"/{database}"))
+                return {"Ok": "Database Deleted!"}
+            else:
+                return {"Doesn't Exist!": "Database doesn't Exist!"}
     except Exception as exception:
-        return(exception)
+        return exception
 
-def create_tables(database: str,*table_names: str):
-    """
-    Creates tables in a given database.
-
-    Args:
-        database (str): The name of the database.
-        *table_names (str): Variable length argument list of table names.
-
-    Returns:
-        str or dict: If the tables are created successfully, returns "Table already exists!" if the table already exists, or returns a dictionary with the error message "Database Does not exist!" if the database does not exist. If an exception occurs, returns the exception object.
-
-    Raises:
-        None
-    """
+def create_tables(database: str, *table_names: str):
     try:
-        engine = create_engine(URL+f"/{database}", echo= True)
+        engine = create_engine(URL + f'/{database}', echo=True)
         inspector = inspect(engine)
-        if database_exists(URL+f"/{database}"):
+        
+        if database_exists(URL + f'/{database}'):
             for table_name in table_names:
                 if table_name not in inspector.get_table_names():
-                    table_name  = Table(
-                    f"{table_name}", METADATA,
-                    Column("Id", Integer, primary_key = True))
-                    table_name.create(bind=engine)
+                    table = Table(table_name, METADATA, Column('Id', Integer, primary_key=True))
+                    table.create(bind=engine)
                 else:
-                    return("Table already exists!")
+                    return 'Table already exists!'
         else:
-            return({"Error!": "Database Does not exist!"})
-    except Exception as exception:
-        return exception
+            return {'Error!': 'Database does not exist!'}
+    except Exception as e:
+        return e
 
 def delete_tables(database: str, *table_names: str):
-    """
-    Deletes specified tables from a given database.
-
-    Args:
-        database (str): The name of the database.
-        *table_names (str): Variable number of table names to be deleted.
-
-    Returns:
-        str: Returns "Tables don't exist!" if any of the specified tables don't exist in the database.
-             Returns "database doesn't exist!" if the specified database doesn't exist.
-             Returns the exception if any other error occurs during the deletion process.
-    """
     try:
-        engine = create_engine(URL+f"/{database}")
+        engine = create_engine(URL + f"/{database}")
         inspector = inspect(engine)
-        if database_exists(URL+f"/{database}"):
-            for table in table_names:
-                if table in inspector.get_table_names():
-                    table = Table(f"{table}", MetaData(bind=engine), autoload=True, autoload_with=engine)
-                    table.drop(bind = engine)
-                else:
-                    return("Tables don't exist!")
-        else:
-            return("database doesn't exist!")
+        
+        if not database_exists(URL + f"/{database}"):
+            return "database doesn't exist!"
+        
+        tables_to_delete = [table for table in table_names if table in inspector.get_table_names()]
+        
+        if not tables_to_delete:
+            return "Tables don't exist!"
+        
+        metadata = MetaData(bind=engine)
+        for table_name in tables_to_delete:
+            table = Table(table_name, metadata, autoload=True, autoload_with=engine)
+            table.drop(bind=engine)
+        
     except Exception as exception:
         return exception
 
-def insert_columns(database: str, table_name: str,  column_name: str, datatype: str, size: str, command: str):
-    """
-    Inserts columns into a table in a database.
-
-    Parameters:
-        - database (str): The name of the database.
-        - table_name (str): The name of the table.
-        - column_name (str): The name of the column to be inserted.
-        - datatype (str): The datatype of the column.
-        - size (str): The size of the column.
-        - command (str): Additional command to be executed.
-
-    Returns:
-        - str: A success message if the columns were inserted successfully.
-        - Exception: An exception object if an error occurred during the operation.
-    """
+def insert_columns(database: str, table_name: str, column_name: str, datatype: str, size: str, command: str):
     try:
-        engine = create_engine(URL+f"/{database}")
-        inpsector = inspect(engine)
-        command = str(command)
-        command.lower()
-        if database_exists(URL+f"/{database}"):
-            if table_name in inpsector.get_table_names():
-                command = text(f"ALTER TABLE {table_name} ADD {column_name} {datatype}({size}) {command}")
-                engine.execute(command)
-                return("Successfully inserted columns!")
+        engine = create_engine(URL + f'/{database}')
+        inspector = inspect(engine)
+        command = command.lower()
+        
+        if database_exists(URL + f'/{database}') and table_name in inspector.get_table_names():
+            command = text(f'ALTER TABLE {table_name} ADD {column_name} {datatype}({size}) {command}')
+            engine.execute(command)
+            return 'Successfully inserted columns!'
     except Exception as exception:
-        return(exception)
-        #         if len(order) > 0 and order == "first":
-        #             command = text(f"ALTER TABLE {table_name} ADD {column_name} {datatype}({size}) {order}")
-        #         else:
-        #             return{"Error":"Invalid order!"}
-        #         if len(column) > 0 and order == "after":
-        #             command = text(f"ALTER TABLE {table_name} ADD {column_name} {datatype}({size}) {order} {column}")
-        #     else:
-        #         return {"Error":"Table does not exist!"}
-        # else:
-        #     return{"Error":"Database does not exist!"}
+        return exception
 
 def delete_columns(database: str, table_name: str, column_name: str):
     """
@@ -168,18 +120,21 @@ def delete_columns(database: str, table_name: str, column_name: str):
     """
 
     try:
-        engine = create_engine(URL+f"/{database}")
+        engine = create_engine(URL + f"/{database}")
         inspector = inspect(engine)
-        if database_exists(URL+f"/{database}"):
-            if table_name in inspector.get_table_names():
-                command = f"ALTER TABLE {table_name} DROP COLUMN {column_name}"
-                engine.execute(command)
-            else:
-                return{"Error": "Table does not exist!"}
-        else:
-            return{"Error": "Database does not exist!"}
+
+        if not database_exists(URL + f"/{database}"):
+            return {"Error": "Database does not exist!"}
+
+        if table_name not in inspector.get_table_names():
+            return {"Error": "Table does not exist!"}
+
+        command = f"ALTER TABLE {table_name} DROP COLUMN {column_name}"
+        engine.execute(command)
     except Exception as exception:
         return exception
+
+    return {}
 
 def modify_column(database: str, table_name: str, column_name: str, command: str):
     """
@@ -198,47 +153,57 @@ def modify_column(database: str, table_name: str, column_name: str, command: str
             - If an exception occurs, returns the exception message.
     """
     try:
-        engine = create_engine(URL+f"/{database}")
-        inspector = inspect(engine)
-        if database_exists(URL+f"{database}"):
-            if table_name in inspector.get_table_names():
+        with create_engine(URL+f"/{database}").connect() as connection:
+            inspector = inspect(connection)
+            if database_exists(URL+f"{database}"):
+                if table_name in inspector.get_table_names():
                     command = f"ALTER TABLE {table_name} MODIFY {column_name} {command}"
-                    engine.execute(command)
+                    connection.execute(command)
+                else:
+                    return "table doesn't exist"
             else:
-                return("table doesn't exist")
-        else:
-            return("Database doesn't exist")
+                return "Database doesn't exist"
     except Exception as exception:
-        return exception
+        return str(exception)
 
-def inspect_columns(database: str, table, *column: str):
+from sqlalchemy import create_engine, inspect, MetaData, Table
+from sqlalchemy.exc import NoSuchTableError, NoSuchDatabaseError
+
+def inspect_columns(database: str, table: str, *column: str):
     """
     Inspects the columns of a database table.
 
-    :param database: The name of the database.
-    :param table: The name of the table to inspect.
-    :param column: Variable length argument representing the columns to retrieve. 
-                   If no columns are specified, all columns will be retrieved.
+    Args:
+        database (str): The name of the database.
+        table (str): The name of the table.
+        *column (str): Variable number of column names.
 
-    :return: If the table exists in the database, returns a list of columns in the table. 
-             If the table exists and columns are specified, returns the data from the specified columns. 
-             If the table doesn't exist, returns the string "Table doesn't Exist!".
-             If the database doesn't exist, returns the string "Database doesn't exist".
-             If any exception occurs during execution, returns the exception object.
+    Returns:
+        list or str: If no column names are provided, returns a list of dictionaries representing the columns of the table.
+                     If column names are provided, returns the selected columns as a list of tuples.
+                     If the table does not exist, returns the string "Table doesn't Exist!".
+                     If the database does not exist, returns the string "Database doesn't exist".
+                     If an exception occurs, returns the exception object.
+
+    Raises:
+        NoSuchDatabaseError: If the specified database does not exist.
+        NoSuchTableError: If the specified table does not exist.
     """
     try:
-        engine = create_engine(URL+ f"/{database}")
+        engine = create_engine(URL + f"/{database}")
         inspector = inspect(engine)
-        table = Table(f"{table}", MetaData(bind=engine), autoload=True, autoload_with=engine)
-        if database_exists(URL+f"/{database}"):
-            if table in inspector.get_table_names():
-                return engine.execute(f"SHOW COLUMNS IN {table}").fetchall()
-            elif table in inspector.get_table_names() and len(column) > 0:
-                return engine.execute(f"SELECT * FROM {column}").fetchall()
+        
+        if inspector.has_table(table):
+            if not column:
+                return inspector.get_columns(table)
             else:
-                return("Table doesn't Exist!")
+                return engine.execute(f"SELECT {', '.join(column)} FROM {table}").fetchall()
         else:
-            return("Database doesn't exist")
+            return "Table doesn't Exist!"
+    except NoSuchDatabaseError:
+        return "Database doesn't exist"
+    except NoSuchTableError:
+        return "Table doesn't Exist!"
     except Exception as exception:
         return exception
 
@@ -255,11 +220,9 @@ def query(database: str, table_name: str, filter_condition: str):
         Exception or None: If an error occurs during the query execution, the exception is returned. Otherwise, None is returned.
     """
     try:
-        engine = create_engine(URL+ f"/{database}")
-        inspector = inspect(engine)
-        table = Table(f"{table_name}", MetaData(bind=engine), autoload=True, autoload_with=engine)
-        if database_exists(URL+f"/{database}"):
-            if table in inspector.get_table_names():
-                engine.execute(f"SELECT * FROM {table} WHERE {filter_condition}").fetchall()
+        with create_engine(URL + f"/{database}").connect() as connection:
+            inspector = inspect(connection)
+            if database_exists(URL + f"/{database}") and table_name in inspector.get_table_names():
+                return connection.execute(f"SELECT * FROM {table_name} WHERE {filter_condition}").fetchall()
     except Exception as exception:
         return exception
