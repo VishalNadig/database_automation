@@ -1,11 +1,13 @@
 from sqlalchemy import create_engine, Table, Column, Integer, MetaData, inspect, text
 from sqlalchemy_utils import create_database, database_exists, drop_database
+import pandas as pd
+
 
 USER = "root"
-PASSWORD = "MYmac123"
+PASSWORD = "A1B2C3D4E5"
 HOSTNAME = "localhost"
 METADATA = MetaData()
-URL = f"mysql+pymysql://{USER}:{PASSWORD}@{HOSTNAME}"
+URL = f"mysql+mysqlconnector://{USER}:{PASSWORD}@{HOSTNAME}"
 
 def create_database_function(database: str):
     """
@@ -226,3 +228,32 @@ def query(database: str, table_name: str, filter_condition: str):
                 return connection.execute(f"SELECT * FROM {table_name} WHERE {filter_condition}").fetchall()
     except Exception as exception:
         return exception
+    
+
+
+def check_for_duplicates(database: str, table_name: str, column_name: str):
+    """
+    Checks for duplicates in a specified database table column.
+    """
+    with create_engine(URL + f"/{database}").connect() as connection:
+        inspector = inspect(connection)
+        if database_exists(URL + f"/{database}") and table_name in inspector.get_table_names():
+            return connection.execute(f"SELECT {column_name} FROM {table_name} GROUP BY {column_name} HAVING COUNT({column_name}) > 1").fetchall()
+
+
+
+def delete_duplicates(dataframe: pd.DataFrame):
+    """
+    Delete duplicates from the given dataframe.
+
+    Args:
+        dataframe (pd.DataFrame): The dataframe to remove duplicates from.
+
+    Returns:
+        pd.DataFrame: The dataframe with duplicates removed.
+    """
+    return dataframe.drop_duplicates()
+    
+
+if __name__ == '__main__':
+    check_for_duplicates("food_db", "food_recipes".upper(), "RECIPE_NAME")
