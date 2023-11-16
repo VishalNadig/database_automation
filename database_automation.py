@@ -476,7 +476,43 @@ def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
             create_database_function(database)
             return insert_dataframe(database=database, table_name=table_name, dataframe=dataframe)
     except ProgrammingError as e:
+        sys.stdout.write(str(e))
         return e
+
+def add_new_data_to_table(database: str, table_name: str):
+    """
+    Adds new data to a table in a given database.
+
+    Args:
+        database (str): The name of the database.
+        table_name (str): The name of the table.
+
+    Returns:
+        None
+    """
+    url = generate_database_url(get_toml_credentials(), database=database)
+    try:
+        if database_exists(url):
+            with create_engine(url).connect() as connection:
+                existing_data = pd.read_sql_table(table_name, con=create_engine(url))
+                columns = existing_data.columns
+                print(columns)
+                new_row = {}
+                new_row_df = pd.DataFrame(new_row, index=[0])
+                updated_data = existing_data.append(new_row_df, ignore_index=True)
+                updated_data.to_sql(name=table_name, con=create_engine(url), if_exists='replace', index=False)
+        else:
+            sys.stdout.write(f"The database '{database}' does not exist.")
+            return None
+    except Exception as e:
+        sys.stdout.write(str(e))
+        #         if not database_exists(url):
+        #             create_database_function(database)
+        #         dataframe.to_sql(name=table_name, con=create_engine(url), if_exists='append', index=False)
+        #         return "Dataframe inserted successfully!"
+        # else:
+        #     create_database_function(database)
+        #     return add_new_data_to_table(database=database, table_name=table_name, dataframe=dataframe)
 if __name__ == '__main__':
     print(insert_dataframe(database="isro", table_name="isro_mission_launches", dataframe="ISRO mission launches.csv"))
     # print(get_data_from_database(database="isro", table_name="isro_mission_launches"))
