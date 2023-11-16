@@ -5,6 +5,7 @@ import toml
 import os
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.exc import ProgrammingError
+import sys
 
 METADATA = MetaData()
 
@@ -33,9 +34,8 @@ def create_credentials_file():
     Returns:
         credentials (dict): A dictionary containing the user's credentials
     """
-    
-    print('Error! Credentials file does not exist!')
-    
+
+
     username = input("Enter your username. Default value is root: ") or "root"
     password = input("Enter your password: ")
     host = input("Enter your host. Default value is localhost: ") or "localhost"
@@ -57,7 +57,7 @@ def create_credentials_file():
     }
 
     with open(file_path, "w") as file:
-        print("Creating credentials file in {file_path}...".format(file_path=file_path))
+        sys.stdout.write("Creating credentials file in {file_path}...".format(file_path=file_path))
         toml.dump(data, file)
 
     with open(file_path, "r") as file:
@@ -132,13 +132,12 @@ def create_tables(database: str, *table_names: str, column_name: str = None):
         URL = f"{connector}://{USER}:{PASSWORD}@{HOSTNAME}/{database}"
         engine = create_engine(URL, echo=True)
         inspector = inspect(engine)
-        
+
         if database_exists(URL):
-            print(column_name)
+            sys.stdout.write(column_name)
             for table_name in table_names:
                 if table_name not in inspector.get_table_names():
                     if column_name:
-                        # print(column_name)
                         table = Table(table_name, METADATA, Column('Id', Integer, primary_key=True), Column(column_name, Integer))
                         table.create(bind=engine)
                     else:
@@ -169,20 +168,20 @@ def delete_tables(database: str, *table_names: str):
         URL = f"{credentials.get('CONNECTOR')}://{credentials.get('USER')}:{credentials.get('PASSWORD')}@{credentials.get('HOSTNAME')}"
         engine = create_engine(URL + f"/{database}")
         inspector = inspect(engine)
-        
+
         if not database_exists(URL + f"/{database}"):
             return "database doesn't exist!"
-        
+
         tables_to_delete = [table for table in table_names if table in inspector.get_table_names()]
-        
+
         if not tables_to_delete:
             return "Tables don't exist!"
-        
+
         metadata = MetaData(bind=engine)
         for table_name in tables_to_delete:
             table = Table(table_name, metadata, autoload=True, autoload_with=engine)
             table.drop(bind=engine)
-        
+
     except Exception as exception:
         return exception
 
@@ -214,7 +213,7 @@ def insert_columns(database: str, table_name: str, column_name: str, datatype: s
 
         engine = create_engine(URL)
         inspector = inspect(engine)
-        
+
         if database_exists(URL) and table_name in inspector.get_table_names():
             command = text(f'ALTER TABLE {table_name} ADD {column_name} {datatype}({size}) {command}')
             engine.execute(command)
@@ -226,21 +225,21 @@ def insert_columns(database: str, table_name: str, column_name: str, datatype: s
 def delete_columns(database: str, table_name: str, column_name: str):
     """
     Deletes a column from a specified table in a given database.
-    
+
     Args:
         database (str): The name of the database.
         table_name (str): The name of the table.
         column_name (str): The name of the column to be deleted.
-        
+
     Returns:
-        dict: An empty dictionary if the column deletion is successful. 
+        dict: An empty dictionary if the column deletion is successful.
         If any SQLAlchemy errors occur during the deletion, the exception is returned.
         If the database or table does not exist, an error message is returned.
     """
     try:
         credentials = get_toml_credentials()
         URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}/{database}"
-        
+
         engine = create_engine(URL)
         inspector = inspect(engine)
 
@@ -273,7 +272,7 @@ def modify_column(database: str, table_name: str, column_name: str, command: str
     try:
         credentials = get_toml_credentials()
         URL = f"{credentials.get('CONNECTOR')}://{credentials.get('USER')}:{credentials.get('PASSWORD')}@{credentials.get('HOSTNAME')}"
-        
+
         with create_engine(URL + f"/{database}").connect() as connection:
             inspector = inspect(connection)
             if database_exists(URL + f"/{database}"):
@@ -291,24 +290,24 @@ def modify_column(database: str, table_name: str, column_name: str, command: str
 def inspect_columns(database: str, table: str, *column: str):
     """
     Get information about columns in a database table.
-    
+
     Args:
         database (str): The name of the database.
         table (str): The name of the table.
         *column (str): Variable length argument for column names.
-        
+
     Returns:
         list: A list of column information if no column names are specified, or a list of values for the specified columns.
         str: "Table doesn't Exist!" if the table doesn't exist.
         Exception: An exception object if an error occurs.
     """
-    
+
     try:
         credentials = get_toml_credentials()
         URL = f"{credentials.get('CONNECTOR')}://{credentials.get('USER')}:{credentials.get('PASSWORD')}@{credentials.get('HOSTNAME')}"
         engine = create_engine(URL + f"/{database}")
         inspector = inspect(engine)
-        
+
         if inspector.has_table(table):
             if not column:
                 return inspector.get_columns(table)
@@ -341,7 +340,7 @@ def query(database: str, table_name: str, filter_condition: str):
                 return connection.execute(f"SELECT * FROM {table_name} WHERE {filter_condition}").fetchall()
     except Exception as exception:
         return exception
-    
+
 
 
 def check_for_duplicates(database: str, table_name: str, column_name: str):
@@ -383,11 +382,11 @@ def delete_duplicates(dataframe: pd.DataFrame):
 def get_data_from_database(database: str = None, table_name: str = None):
     """
     Retrieves data from a specified database table.
-    
+
     Args:
         database (str, optional): The name of the database. Defaults to None.
         table_name (str, optional): The name of the table. Defaults to None.
-    
+
     Returns:
         list: A list of tuples containing the retrieved data.
         str: An error message if there is an exception.
@@ -397,25 +396,22 @@ def get_data_from_database(database: str = None, table_name: str = None):
     """
     if not database or not table_name:
         return "Please provide both database and table name as arguments to the function. \nExample: get_data_from_database(database='food_db', table_name='food_recipes')"
-    
+
     try:
         credentials = get_toml_credentials()
         url = generate_database_url(credentials, database=database)
         with create_engine(url).connect() as connection:
             if connection:
-                print("In connection if block")
                 databases = [row[0] for row in connection.execute(text("SHOW DATABASES")).fetchall()]
                 if database in databases:
-                    print("In database if block")
                     tables = [ row[0] for row in connection.execute(text("SHOW TABLES IN " + database)).fetchall()]
                     if table_name in tables:
-                        print("In table if block")
                         return connection.execute(text(f"SELECT * FROM {database}.{table_name}")).fetchall()
                     else:
                         return f"""The table '{table_name}' does not exist. Trying with capitalized table name. {connection.execute(text(f"SELECT * FROM {database}.{table_name.upper()}")).fetchall()}"""
                 else:
                     return f"The database '{database}' does not exist. Try with capitalized database name. {databases}"
-    
+
     except ProgrammingError as exception:
         return exception
 
@@ -449,6 +445,18 @@ def generate_database_url(credentials: dict, database: str):
 
 
 def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
+    """
+    Inserts a DataFrame into a specified database table.
+
+    Args:
+        database (str): The name of the database.
+        table_name (str): The name of the table.
+        dataframe (pd.DataFrame): The DataFrame to be inserted.
+
+    Returns:
+        str or ProgrammingError: A success message if the DataFrame is inserted successfully,
+            or a ProgrammingError if an exception occurs.
+    """
     dataframe = dataframe.drop_duplicates()
     url = generate_database_url(get_toml_credentials(), database)
     try:
@@ -466,11 +474,5 @@ def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
             return insert_dataframe(database, table_name, dataframe)
     except ProgrammingError as e:
         return e
-if __name__ == '__main__':       
-    # check_for_duplicates("food_db", "food_recipes".upper(), "RECIPE_NAME")
-    # get_toml_credentials()
-    # print(get_data_from_database(database="food_db", table_name="food_recipes"))
-    # get_data_from_database("random_db")
-    # print(os.path.expanduser('~'))
-    # print(insert_dataframe(database="food_db", table_name="food_recipes", dataframe=pd.read_csv("Modified_Indian_Food_Dataset.csv")))   
-    print(get_data_from_database(database="food_db", table_name="food_recipes"))                                                                
+if __name__ == '__main__':
+    print(get_data_from_database(database="food_db", table_name="food_recipes"))
