@@ -376,7 +376,10 @@ def delete_duplicates(dataframe: pd.DataFrame):
     Returns:
         pd.DataFrame: The dataframe with duplicates removed.
     """
-    return dataframe.drop_duplicates()
+    if type(dataframe) != pd.DataFrame:
+        sys.stdout.write("Not a pandas dataframe, trying to convert to pandas dataframe\n")
+        dataframe = pd.DataFrame(pd.read_csv(dataframe, encoding="cp1252"))
+        return dataframe.drop_duplicates()
 
 
 def get_data_from_database(database: str = None, table_name: str = None):
@@ -457,22 +460,23 @@ def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
         str or ProgrammingError: A success message if the DataFrame is inserted successfully,
             or a ProgrammingError if an exception occurs.
     """
-    dataframe = dataframe.drop_duplicates()
+    dataframe = delete_duplicates(dataframe)
+    print("Dataframe created successfully!")
     url = generate_database_url(get_toml_credentials(), database)
+    print("Database URL generated successfully!")
     try:
         if database_exists(url):
             with create_engine(url).connect() as connection:
+                if not database_exists(url):
+                    create_database_function(database)
                 if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0:
-                    create_tables(database, table_name, column_name=dataframe.columns)
-                    # Now you can proceed with inserting the data into the table
                     dataframe.to_sql(name=table_name, con=create_engine(url), if_exists='replace', index=False)
-                else:
-                    dataframe.to_sql(name=table_name, con=create_engine(url), if_exists='replace', index=False)
-            return "Dataframe inserted successfully!"
+                return "Dataframe inserted successfully!"
         else:
-            create_database(database)
-            return insert_dataframe(database, table_name, dataframe)
+            create_database_function(database)
+            return insert_dataframe(database=database, table_name=table_name, dataframe=dataframe)
     except ProgrammingError as e:
         return e
 if __name__ == '__main__':
-    print(get_data_from_database(database="food_db", table_name="food_recipes"))
+    print(insert_dataframe(database="isro", table_name="isro_mission_launches", dataframe="ISRO mission launches.csv"))
+    # print(get_data_from_database(database="isro", table_name="isro_mission_launches"))
