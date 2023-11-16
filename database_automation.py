@@ -112,7 +112,7 @@ def delete_database_function(database: str):
     except Exception as exception:
         return exception
 
-def create_tables(database: str, *table_names: str):
+def create_tables(database: str, *table_names: str, column_name: str = None):
     """
     Creates tables in a specified database.
 
@@ -134,10 +134,16 @@ def create_tables(database: str, *table_names: str):
         inspector = inspect(engine)
         
         if database_exists(URL):
+            print(column_name)
             for table_name in table_names:
                 if table_name not in inspector.get_table_names():
-                    table = Table(table_name, METADATA, Column('Id', Integer, primary_key=True))
-                    table.create(bind=engine)
+                    if column_name:
+                        # print(column_name)
+                        table = Table(table_name, METADATA, Column('Id', Integer, primary_key=True), Column(column_name, Integer))
+                        table.create(bind=engine)
+                    else:
+                        table = Table(table_name, METADATA, Column('Id', Integer, primary_key=True))
+                        table.create(bind=engine)
                 else:
                     return 'Table already exists!'
         else:
@@ -442,9 +448,29 @@ def generate_database_url(credentials: dict, database: str):
     return f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}/{database}"
 
 
-if __name__ == '__main__':
+def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
+    dataframe = dataframe.drop_duplicates()
+    url = generate_database_url(get_toml_credentials(), database)
+    try:
+        if database_exists(url):
+            with create_engine(url).connect() as connection:
+                if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0:
+                    create_tables(database, table_name, column_name=dataframe.columns)
+                    # Now you can proceed with inserting the data into the table
+                    dataframe.to_sql(name=table_name, con=create_engine(url), if_exists='replace', index=False)
+                else:
+                    dataframe.to_sql(name=table_name, con=create_engine(url), if_exists='replace', index=False)
+            return "Dataframe inserted successfully!"
+        else:
+            create_database(database)
+            return insert_dataframe(database, table_name, dataframe)
+    except ProgrammingError as e:
+        return e
+if __name__ == '__main__':       
     # check_for_duplicates("food_db", "food_recipes".upper(), "RECIPE_NAME")
     # get_toml_credentials()
-    print(get_data_from_database(database="food_db", table_name="food_recipes"))
+    # print(get_data_from_database(database="food_db", table_name="food_recipes"))
     # get_data_from_database("random_db")
     # print(os.path.expanduser('~'))
+    # print(insert_dataframe(database="food_db", table_name="food_recipes", dataframe=pd.read_csv("Modified_Indian_Food_Dataset.csv")))   
+    print(get_data_from_database(database="food_db", table_name="food_recipes"))                                                                
