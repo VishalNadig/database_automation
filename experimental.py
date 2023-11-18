@@ -1,27 +1,31 @@
 from sqlalchemy import create_engine, Table, Column, Integer, MetaData, inspect, text
 from sqlalchemy_utils import create_database, database_exists, drop_database
 import pandas as pd
-import toml
+import yaml
 import os
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.exc import ProgrammingError
 import sys
+import kaggle
+from kaggle.api.kaggle_api_extended import KaggleApi
+from pprint import pprint
+
 
 METADATA = MetaData()
 
-def get_toml_credentials():
+def get_yaml_credentials():
     """
     Read the TOML credentials file and return its contents.
 
     :return: A dictionary containing the contents of the TOML file.
     """
     home_directory = os.path.expanduser('~')
-    if not os.path.exists(rf"{home_directory}/.database_credentials.toml") or os.path.getsize(rf"{home_directory}/.database_credentials.toml") == 0:
+    if not os.path.exists(rf"{home_directory}/.database_credentials.yaml") or os.path.getsize(rf"{home_directory}/.database_credentials.yaml") == 0:
         create_credentials_file()
 
-    with open(rf"{home_directory}/.database_credentials.toml", 'r') as f:
-        toml_file = toml.load(f)
-    return toml_file.get("credentials")
+    with open(rf"{home_directory}/.database_credentials.yaml", 'r') as file:
+        yaml_file = yaml.safe_load(file)
+    return yaml_file.get("credentials")
 
 
 def create_credentials_file():
@@ -41,7 +45,7 @@ def create_credentials_file():
     host = input("Enter your host. Default value is localhost: ") or "localhost"
     port = input("Enter your port. Default value is 3306: ") or "3306"
     connector = input("Enter your connector. List of connectors: \n[1] mysql+mysqlconnector\n[2] postgresql+psycopg2\n[3] \nDefault value is mysqlconnector: ") or "mysql+mysqlconnector"
-    file_name = ".database_credentials.toml"
+    file_name = ".database_credentials.yaml"
 
     # Create the file
     home_directory = os.path.expanduser('~')
@@ -57,11 +61,11 @@ def create_credentials_file():
     }
 
     with open(file_path, "w") as file:
-        sys.stdout.write("Creating credentials file in {file_path}...".format(file_path=file_path))
-        toml.dump(data, file)
+        sys.stdout.write(f"Creating credentials file in {file_path}...")
+        yaml.safe_dump(data, file)
 
     with open(file_path, "r") as file:
-        return toml.load(file)["credentials"]
+        return yaml.safe_load(file)["credentials"]
 
 def create_database_function(database: str):
     """
@@ -75,7 +79,7 @@ def create_database_function(database: str):
         tuple: If an exception occurs during the creation of the database, a tuple with None as the first element and the exception as the second element will be returned.
     """
     try:
-        credentials = get_toml_credentials()
+        credentials = get_yaml_credentials()
         URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
         engine = create_engine(URL)
         connection = engine.connect()
@@ -101,7 +105,7 @@ def delete_database_function(database: str):
         If an exception occurs during the deletion process, the exception object is returned.
     """
     try:
-        credentials = get_toml_credentials()
+        credentials = get_yaml_credentials()
         URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
         with create_engine(URL).connect() as connection:
             if database_exists(f"{URL}/{database}"):
@@ -124,11 +128,11 @@ def create_tables(database: str, *table_names: str, column_name: str = None):
         str or dict: If the tables are successfully created, returns 'Table already exists!' if the table already exists in the database. If the database does not exist, returns a dictionary with the key 'Error!' and the value 'Database does not exist!'. If an exception occurs during the table creation process, returns the exception object.
     """
     try:
-        credentials = get_toml_credentials()
-        USER = credentials.get("USER")
-        PASSWORD = credentials.get("PASSWORD")
-        HOSTNAME = credentials.get("HOSTNAME")
-        connector = credentials.get("CONNECTOR")
+        credentials = get_yaml_credentials()
+        USER = credentials["USER"]
+        PASSWORD = credentials["PASSWORD"]
+        HOSTNAME = credentials["HOSTNAME"]
+        connector = credentials["CONNECTOR"]
         URL = f"{connector}://{USER}:{PASSWORD}@{HOSTNAME}/{database}"
         engine = create_engine(URL, echo=True)
         inspector = inspect(engine)
@@ -164,8 +168,8 @@ def delete_tables(database: str, *table_names: str):
             if any other error occurs.
     """
     try:
-        credentials = get_toml_credentials()
-        URL = f"{credentials.get('CONNECTOR')}://{credentials.get('USER')}:{credentials.get('PASSWORD')}@{credentials.get('HOSTNAME')}"
+        credentials = get_yaml_credentials()
+        URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
         engine = create_engine(URL + f"/{database}")
         inspector = inspect(engine)
 
@@ -204,11 +208,11 @@ def insert_columns(database: str, table_name: str, column_name: str, datatype: s
         Exception: If an error occurs during the insertion process.
     """
     try:
-        credentials = get_toml_credentials()
-        USER = credentials.get("USER")
-        PASSWORD = credentials.get("PASSWORD")
-        HOSTNAME = credentials.get("HOSTNAME")
-        connector = credentials.get("CONNECTOR")
+        credentials = get_yaml_credentials()
+        USER = credentials["USER"]
+        PASSWORD = credentials["PASSWORD"]
+        HOSTNAME = credentials["HOSTNAME"]
+        connector = credentials["CONNECTOR"]
         URL = f"{connector}://{USER}:{PASSWORD}@{HOSTNAME}/{database}"
 
         engine = create_engine(URL)
@@ -237,7 +241,7 @@ def delete_columns(database: str, table_name: str, column_name: str):
         If the database or table does not exist, an error message is returned.
     """
     try:
-        credentials = get_toml_credentials()
+        credentials = get_yaml_credentials()
         URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}/{database}"
 
         engine = create_engine(URL)
@@ -270,8 +274,8 @@ def modify_column(database: str, table_name: str, column_name: str, command: str
         str: If the modification is successful, returns an empty string. Otherwise, returns an error message.
     """
     try:
-        credentials = get_toml_credentials()
-        URL = f"{credentials.get('CONNECTOR')}://{credentials.get('USER')}:{credentials.get('PASSWORD')}@{credentials.get('HOSTNAME')}"
+        credentials = get_yaml_credentials()
+        URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
 
         with create_engine(URL + f"/{database}").connect() as connection:
             inspector = inspect(connection)
@@ -303,8 +307,8 @@ def inspect_columns(database: str, table: str, *column: str):
     """
 
     try:
-        credentials = get_toml_credentials()
-        URL = f"{credentials.get('CONNECTOR')}://{credentials.get('USER')}:{credentials.get('PASSWORD')}@{credentials.get('HOSTNAME')}"
+        credentials = get_yaml_credentials()
+        URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
         engine = create_engine(URL + f"/{database}")
         inspector = inspect(engine)
 
@@ -332,7 +336,7 @@ def query(database: str, table_name: str, filter_condition: str):
         Exception: If any error occurs during the query execution.
     """
     try:
-        credentials = get_toml_credentials()
+        credentials = get_yaml_credentials()
         URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
         with create_engine(f"{URL}/{database}").connect() as connection:
             inspector = inspect(connection)
@@ -356,7 +360,7 @@ def check_for_duplicates(database: str, table_name: str, column_name: str):
         list: A list of rows representing the duplicate values found in the column.
     """
 
-    credentials = get_toml_credentials()
+    credentials = get_yaml_credentials()
     URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
     with create_engine(f"{URL}/{database}").connect() as connection:
         inspector = inspect(connection)
@@ -405,7 +409,7 @@ def get_data_from_database(database: str = None, table_name: str = None):
         return "Please provide both database and table name as arguments to the function. \nExample: get_data_from_database(database='food_db', table_name='food_recipes')"
 
     try:
-        credentials = get_toml_credentials()
+        credentials = get_yaml_credentials()
         url = generate_database_url(credentials, database=database)
         with create_engine(url).connect() as connection:
             if connection:
@@ -468,7 +472,7 @@ def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
     # print(dataframe.)
     dataframe = delete_duplicates(dataframe)
     print("Dataframe created successfully!")
-    url = generate_database_url(get_toml_credentials(), database)
+    url = generate_database_url(get_yaml_credentials(), database)
     print("Database URL generated successfully!")
     try:
         if database_exists(url):
@@ -499,7 +503,7 @@ def add_new_data_to_table(database: str = None, table_name: str = None, datafram
     Returns:
         None
     """
-    url = generate_database_url(get_toml_credentials(), database=database)
+    url = generate_database_url(get_yaml_credentials(), database=database)
     try:
         if database_exists(url):
             if dataframe and type(dataframe) == pd.DataFrame:
@@ -541,7 +545,7 @@ def add_pk(database: str, table_name: str, constraint_name: str, column_name: st
     Returns:
         None
     """
-    url = generate_database_url(get_toml_credentials(), database=database)
+    url = generate_database_url(get_yaml_credentials(), database=database)
     try:
         if database_exists(url):
             with create_engine(url).connect() as connection:
@@ -578,7 +582,7 @@ def delete_pk(database: str, table_name: str):
     Returns:
         None
     """
-    url = generate_database_url(get_toml_credentials(), database=database)
+    url = generate_database_url(get_yaml_credentials(), database=database)
     try:
         if database_exists(url):
             with create_engine(url).connect() as connection:
@@ -596,6 +600,80 @@ def delete_pk(database: str, table_name: str):
     except ProgrammingError as e:
         sys.stdout.write(str(e) + "\n")
 
+def search_kaggle_dataset(dataset: str = None, user: str = None):
+    """
+    Searches for a Kaggle dataset and returns the dataset information in a dictionary.
+
+    Parameters:
+        dataset (str): The name of the dataset to search for.
+        user (str): The name of the user to search for.
+
+    Returns:
+        dict: A dictionary containing the dataset information. The keys are the indices of the datasets, and the values are the dataset objects.
+
+    Raises:
+        None
+
+    Example:
+        search_kaggle_dataset("video game")
+    """
+    count=1
+    if os.path.exists(os.path.expanduser('~') + "/.kaggle") and os.path.isfile(os.path.expanduser('~') + "/.kaggle/kaggle.json"):
+        api = KaggleApi()
+        api.authenticate()
+        dataset_dict = {}
+
+    if dataset:
+        if user:
+            for _dataset in api.dataset_list(search=dataset, user=user):
+                dataset_dict[count] = _dataset
+                count+=1
+        else:
+            for _dataset in api.dataset_list(search=dataset):
+                dataset_dict[count] = _dataset
+                count+=1
+    else:
+        return None
+    pprint(dataset_dict)
+    choice = int(input("\n\nChoose the dataset number: "))
+    while choice not in dataset_dict:
+        sys.stdout.write("Invalid choice!\n Try again!\n")
+        choice = int(input("\n\nChoose the dataset number: "))
+        # dataset_dict[choice] = str(dataset_dict[choice]).split("/")[-1]
+    download_kaggle_dataset(dataset=str(dataset_dict[choice]), dataset_path=os.path.join(os.path.expanduser('~'), r"AI and Machine Learning/datasets"))
+
+def download_kaggle_dataset(dataset: str, dataset_path: str = None):
+    """
+    Download a Kaggle dataset.
+
+    Args:
+        dataset (str): The name of the Kaggle dataset.
+        path (str, optional): The path to save the downloaded files. Defaults to None.
+
+    Returns:
+        None
+
+    Raises:
+        None
+    """
+    print(dataset)
+    if os.path.exists(os.path.expanduser('~') + "/.kaggle") and os.path.isfile(os.path.expanduser('~') + "/.kaggle/kaggle.json"):
+        api = KaggleApi()
+        api.authenticate()
+    else:
+        sys.stdout.write("kaggle.json not found!\n")
+        return None
+    if not os.path.exists(dataset_path):
+        os.makedirs(os.path.expanduser('~') + "/AI and Machine Learning/datasets/")
+    print(f"Before / check on : {dataset}")
+    if dataset and dataset_path:
+        api.dataset_download_files(dataset, path=dataset_path, unzip=True)
+    else:
+        sys.stdout.write("Dataset and path cannot be None!\n")
+        return None
+
+
 if __name__ == '__main__':
-    # add_new_data_to_table(database="isro", table_name="isro_mission_launches")
-    insert_dataframe(database="isro", table_name="isro_mission_launches", dataframe=pd.DataFrame(pd.read_csv('ISRO mission launches.csv', encoding="cp1252")))
+    search_kaggle_dataset("video game")
+
+    # print(get_data_from_database("isro", "isro_mission_launches")[0])
