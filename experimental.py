@@ -379,7 +379,11 @@ def delete_duplicates(dataframe: pd.DataFrame):
     if type(dataframe) != pd.DataFrame:
         sys.stdout.write("Not a pandas dataframe, trying to convert to pandas dataframe\n")
         dataframe = pd.DataFrame(pd.read_csv(dataframe, encoding="cp1252"))
-        return dataframe.drop_duplicates()
+        dataframe = dataframe.drop_duplicates()
+        return dataframe
+    else:
+        dataframe = dataframe.drop_duplicates()
+        return dataframe
 
 
 def get_data_from_database(database: str = None, table_name: str = None):
@@ -460,6 +464,8 @@ def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
         str or ProgrammingError: A success message if the DataFrame is inserted successfully,
             or a ProgrammingError if an exception occurs.
     """
+    # print(dataframe.__str__())
+    # print(dataframe.)
     dataframe = delete_duplicates(dataframe)
     print("Dataframe created successfully!")
     url = generate_database_url(get_toml_credentials(), database)
@@ -469,9 +475,12 @@ def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
             with create_engine(url).connect() as connection:
                 if not database_exists(url):
                     create_database_function(database)
-                if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0:
+                if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0 and dataframe is not None:
                     dataframe.to_sql(name=table_name, con=create_engine(url), if_exists='replace', index=False)
-                return "Dataframe inserted successfully!"
+                    return {200: "Dataframe inserted successfully!"}
+                else:
+                    sys.stdout.write("Table already exists!\n")
+                    return {500: "Dataframe already exists!"}
         else:
             create_database_function(database)
             return insert_dataframe(database=database, table_name=table_name, dataframe=dataframe)
@@ -479,7 +488,7 @@ def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
         return e
 
 
-def add_new_data_to_table(database: str, table_name: str):
+def add_new_data_to_table(database: str = None, table_name: str = None, dataframe: pd.DataFrame = None):
     """
     Adds new data to a table in a given database.
 
@@ -489,28 +498,28 @@ def add_new_data_to_table(database: str, table_name: str):
 
     Returns:
         None
-        Sl No 2
-        Launch Date 07-Jun-79
-        Launch Vehicle Bhaskara-I
-        Launch Vehicle.1 C-1Intercosmos
-        Orbit Type LEO (Low Earth Orbit)
-        Application Earth Observation, Experimental
-        Remarks Launch Succesful
     """
     url = generate_database_url(get_toml_credentials(), database=database)
     try:
         if database_exists(url):
+            if dataframe and type(dataframe) == pd.DataFrame:
+                existing_data = pd.read_sql_table(table_name, con=create_engine(url))
+                if existing_data.keys() == dataframe.keys():
+                    dataframe.to_sql(name=table_name, con=create_engine(url), if_exists='append', index=False)
+                else:
+                    sys.stdout.write("The columns in the dataframe do not match the columns in the table.\n")
+                    return None
             new_row = {}
             existing_data = pd.DataFrame(pd.read_sql_table(table_name, con=create_engine(url)))
             for column in existing_data.columns:
-                print(column)
+                sys.stdout.write(column)
                 new_row[column] = input(f"Enter value for {column}: ")
             new_row_df = pd.DataFrame(new_row, index=[0])
             updated_data = pd.concat([existing_data, new_row_df], ignore_index=True)
-            print(f"Before dropping duplicates: {updated_data}{updated_data.shape}")
-            updated_data = updated_data.drop_duplicates(subset=['SL No'], keep='first')
+            updated_data = updated_data.drop_duplicates()
             updated_data.to_sql(name=table_name, con=create_engine(url), if_exists='replace', index=False)
             sys.stdout.write("Dataframe inserted successfully!\n")
+            return {200: "Dataframe inserted successfully!"}
         else:
             sys.stdout.write(f"The database '{database}' does not exist!\n")
             return None
@@ -588,4 +597,5 @@ def delete_pk(database: str, table_name: str):
         sys.stdout.write(str(e) + "\n")
 
 if __name__ == '__main__':
-    add_new_data_to_table(database="isro", table_name="isro_mission_launches")
+    # add_new_data_to_table(database="isro", table_name="isro_mission_launches")
+    insert_dataframe(database="isro", table_name="isro_mission_launches", dataframe=pd.DataFrame(pd.read_csv('ISRO mission launches.csv', encoding="cp1252")))
