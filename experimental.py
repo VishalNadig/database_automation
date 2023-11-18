@@ -40,7 +40,7 @@ def create_credentials_file():
     password = input("Enter your password: ")
     host = input("Enter your host. Default value is localhost: ") or "localhost"
     port = input("Enter your port. Default value is 3306: ") or "3306"
-    connector = input("Enter your connector. Default value is mysqlconnector: ") or "mysql+mysqlconnector"
+    connector = input("Enter your connector. List of connectors: \n[1] mysql+mysqlconnector\n[2] postgresql+psycopg2\n[3] \nDefault value is mysqlconnector: ") or "mysql+mysqlconnector"
     file_name = ".database_credentials.toml"
 
     # Create the file
@@ -477,6 +477,115 @@ def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
             return insert_dataframe(database=database, table_name=table_name, dataframe=dataframe)
     except ProgrammingError as e:
         return e
+
+
+def add_new_data_to_table(database: str, table_name: str):
+    """
+    Adds new data to a table in a given database.
+
+    Args:
+        database (str): The name of the database.
+        table_name (str): The name of the table.
+
+    Returns:
+        None
+        Sl No 2
+        Launch Date 07-Jun-79
+        Launch Vehicle Bhaskara-I
+        Launch Vehicle.1 C-1Intercosmos
+        Orbit Type LEO (Low Earth Orbit)
+        Application Earth Observation, Experimental
+        Remarks Launch Succesful
+    """
+    url = generate_database_url(get_toml_credentials(), database=database)
+    try:
+        if database_exists(url):
+            new_row = {}
+            existing_data = pd.DataFrame(pd.read_sql_table(table_name, con=create_engine(url)))
+            for column in existing_data.columns:
+                print(column)
+                new_row[column] = input(f"Enter value for {column}: ")
+            new_row_df = pd.DataFrame(new_row, index=[0])
+            updated_data = pd.concat([existing_data, new_row_df], ignore_index=True)
+            print(f"Before dropping duplicates: {updated_data}{updated_data.shape}")
+            updated_data = updated_data.drop_duplicates(subset=['SL No'], keep='first')
+            updated_data.to_sql(name=table_name, con=create_engine(url), if_exists='replace', index=False)
+            sys.stdout.write("Dataframe inserted successfully!\n")
+        else:
+            sys.stdout.write(f"The database '{database}' does not exist!\n")
+            return None
+    except Exception as e:
+        sys.stdout.write(str(e) + "\n")
+
+
+
+def add_pk(database: str, table_name: str, constraint_name: str, column_name: str, delete_constraint: bool):
+    """
+    Add constraints to a table in a given database.
+
+    Args:
+        database (str): The name of the database.
+        table_name (str): The name of the table.
+        constraint_name (str): The name of the constraint.
+        column_name (str): The name of the column to be constrained.
+
+    Returns:
+        None
+    """
+    url = generate_database_url(get_toml_credentials(), database=database)
+    try:
+        if database_exists(url):
+            with create_engine(url).connect() as connection:
+                if not database_exists(url):
+                    create_database_function(database)
+                if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0:
+                    sys.stdout.write(f"The table '{table_name}' does not exist!\n")
+                    return None
+                else:
+                    existing_data = pd.read_sql_table(table_name, con=create_engine(url))
+                    columns = existing_data.columns
+                    if column_name in [column for column in columns]:
+                        connection.execute(text(f"ALTER TABLE {table_name} ADD CONSTRAINT {constraint_name} PRIMARY KEY (`{column_name}`)"))
+                        sys.stdout.write("Constraint added successfully!\n")
+                    else:
+                        sys.stdout.write(f"Column does not exist!\nHere are the existing columns: {[column for column in columns]}\n")
+                        return None
+        else:
+            sys.stdout.write(f"The database '{database}' does not exist!\n")
+            return None
+    except Exception as e:
+        sys.stdout.write(str(e))
+
+
+def delete_pk(database: str, table_name: str):
+    """
+    Delete constraints from a table in a given database.
+
+    Args:
+        database (str): The name of the database.
+        table_name (str): The name of the table.
+        constraint_name (str): The name of the constraint.
+
+    Returns:
+        None
+    """
+    url = generate_database_url(get_toml_credentials(), database=database)
+    try:
+        if database_exists(url):
+            with create_engine(url).connect() as connection:
+                if not database_exists(url):
+                    create_database_function(database)
+                if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0:
+                    sys.stdout.write(f"The table '{table_name}' does not exist!\n")
+                    return None
+                else:
+                    connection.execute(text(f"ALTER TABLE {table_name} DROP PRIMARY KEY"))
+                    sys.stdout.write("PRIMARY KEY deleted successfully!\n")
+        else:
+            sys.stdout.write(f"The database '{database}' does not exist!\n")
+            return None
+    except ProgrammingError as e:
+        sys.stdout.write(str(e) + "\n")
+
 if __name__ == '__main__':
-    print(insert_dataframe(database="isro", table_name="isro_mission_launches", dataframe="ISRO mission launches.csv"))
-    # print(get_data_from_database(database="isro", table_name="isro_mission_launches"))
+    add_new_data_to_table(database="isro", table_name="isro_mission_launches")
