@@ -44,7 +44,7 @@ def create_credentials_file():
     port = input("Enter your port. Default value is 3306: ") or "3306"
     connector = input("Enter your connector. List of connectors: \n[1] mysql+mysqlconnector\n[2] postgresql+psycopg2\n[3] \nDefault value is mysqlconnector: ") or "mysql+mysqlconnector"
     file_name = input("Enter your file name. Default value is .database_credentials.yaml: ") or ".database_credentials.yaml"
-    default_download_folder = input("Enter your default download folder. Default directory is the home directory('~/'): ") or "~"
+    default_download_folder = input("Enter your default download folder. Default directory is the kaggle_datasets directory('~/kaggle_datasets'): ") or "~/kaggle_datasets"
 
     # Create the file
     home_directory = os.path.expanduser('~')
@@ -608,7 +608,7 @@ def delete_pk(database: str, table_name: str):
     except ProgrammingError as e:
         sys.stdout.write(str(e) + "\n")
 
-def search_kaggle_dataset(dataset: str = None, user: str = None):
+def search_kaggle_datasets(dataset: str = None, user: str = None):
     """
     Searches for a Kaggle dataset and returns the dataset information in a dictionary.
 
@@ -623,7 +623,7 @@ def search_kaggle_dataset(dataset: str = None, user: str = None):
         None
 
     Example:
-        search_kaggle_dataset("video game")
+        search_kaggle_datasets("video game")
     """
     count=1
     home_folder = os.path.expanduser('~')
@@ -635,12 +635,16 @@ def search_kaggle_dataset(dataset: str = None, user: str = None):
     if dataset:
         if user:
             for _dataset in api.dataset_list(search=dataset, user=user):
-                dataset_dict[count] = _dataset
+                dataset_dict[count] = f"{_dataset} found at https://www.kaggle.com/datasets/{_dataset}"
                 count+=1
         else:
             for _dataset in api.dataset_list(search=dataset):
-                dataset_dict[count] = _dataset
+                dataset_dict[count] = f"{_dataset} found at https://www.kaggle.com/datasets/{_dataset}"
                 count+=1
+    elif dataset and user:
+        for _dataset in api.dataset_list(search=dataset, user=user):
+            dataset_dict[count] = f"{_dataset} found at https://www.kaggle.com/datasets/{_dataset}"
+        return dataset_dict
     else:
         return None
     pprint(dataset_dict)
@@ -702,7 +706,7 @@ def upload_dataset_to_database(database: str = None, table_name: str = None, dat
     """
     credentials = get_yaml_credentials()
     dataset_path = credentials['default_download_folder']
-    dataset = search_kaggle_dataset(dataset=dataset, user=user)
+    dataset = search_kaggle_datasets(dataset=dataset, user=user)
     download_kaggle_dataset(dataset=dataset, dataset_path=dataset_path)
     for file in os.listdir(dataset_path + f"/{str(dataset).split('/')[-1]}"):
         sys.stdout.write(file)
@@ -738,8 +742,9 @@ def download_dataset_from_database(database: str, table_name: str, download_path
             return None
     except Exception as e:
         sys.stdout.write(str(e) + "\n")
-
+        return None
 
 if __name__ == '__main__':
-    download_dataset_from_database(database="video_games", table_name="video_game_sales", download_path="video_game_sales.csv")
+    search_kaggle_datasets(dataset="mnist")
+    # download_dataset_from_database(database="video_games", table_name="video_game_sales", download_path="video_game_sales.csv")
     # upload_dataset_to_database(database="video_games", table_name="video_game_sales", dataset="video game sales")
