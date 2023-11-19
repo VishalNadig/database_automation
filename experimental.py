@@ -6,11 +6,9 @@ import os
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.exc import ProgrammingError
 import sys
-import kaggle
 from kaggle.api.kaggle_api_extended import KaggleApi
 from pprint import pprint
 
-DATASET_PATH = r"/home/vishal/AI and Machine Learning/datasets"
 METADATA = MetaData()
 
 def get_yaml_credentials():
@@ -669,22 +667,23 @@ def download_kaggle_dataset(dataset: str, dataset_path: str = None):
     """
     home_folder = os.path.expanduser('~')
     download_folder = home_folder + f"/AI and Machine Learning/datasets/{str(dataset).split('/')[-1]}"
+    if not os.path.exists(home_folder + "/.kaggle") and os.path.isfile(home_folder + "/.kaggle/kaggle.json"):
+        sys.stdout.write("kaggle.json not found!\n")
+        return None
     if os.path.exists(home_folder + "/.kaggle") and os.path.isfile(home_folder + "/.kaggle/kaggle.json"):
         api = KaggleApi()
         api.authenticate()
         sys.stdout.write(f"Authorized! Downloading {dataset}...")
         api.dataset_download_files(dataset, path=dataset_path + f"/{str(dataset).split('/')[-1]}", unzip=True)
-    else:
-        sys.stdout.write("kaggle.json not found!\n")
-        return None
-    if not os.path.exists(dataset_path + f"/{str(dataset).split('/')[-1]}"):
+        return True
+    elif not os.path.exists(dataset_path + f"/{str(dataset).split('/')[-1]}"):
         os.makedirs(download_folder)
         api.dataset_download_files(dataset, path=dataset_path + f"/{str(dataset).split('/')[-1]}", unzip=True)
-    if dataset and dataset_path:
-        print("Dataset and path are not None!")
+    elif dataset and dataset_path:
+        print("Dataset and path are not None!\n")
         api.dataset_download_files(dataset, path=dataset_path + f"/{str(dataset).split('/')[-1]}", unzip=True)
     else:
-        sys.stdout.write("Dataset and path cannot be None!\n")
+        sys.stdout.write("kaggle.json not found!\n")
         return None
 
 def upload_dataset_to_database(database: str = None, table_name: str = None, dataset: str = None, user: str = None, dataset_path: str = None):
@@ -701,15 +700,46 @@ def upload_dataset_to_database(database: str = None, table_name: str = None, dat
     Returns:
         None
     """
+    credentials = get_yaml_credentials()
+    dataset_path = credentials['default_download_folder']
     dataset = search_kaggle_dataset(dataset=dataset, user=user)
     download_kaggle_dataset(dataset=dataset, dataset_path=dataset_path)
     for file in os.listdir(dataset_path + f"/{str(dataset).split('/')[-1]}"):
         sys.stdout.write(file)
         insert_dataframe(database=database, table_name=table_name, dataframe=dataset_path + f"/{str(dataset).split('/')[-1]}/" + file)
 
-if __name__ == '__main__':
-    upload_dataset_to_database(database="video_games", table_name="video_game_sales", dataset="video game sales", dataset_path=DATASET_PATH)
-    # insert_dataframe("video_games", "video_game_sales")
-    # search_kaggle_dataset("video game")
 
-    # print(get_data_from_database("isro", "isro_mission_launches")[0])
+def download_dataset_from_database(database: str, table_name: str, download_path: str):
+    """
+    Downloads a dataset from a database table.
+
+    Parameters:
+        database (str): The name of the database.
+        table_name (str): The name of the table in the database.
+        download_path (str): The path to download the dataset to.
+
+    Returns:
+        None
+    """
+    credentials = get_yaml_credentials()
+    url = generate_database_url(credentials, database=database)
+    try:
+        if database_exists(url):
+            with create_engine(url).connect() as connection:
+                if not database_exists(url):
+                    create_database_function(database)
+                if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0:
+                    sys.stdout.write(f"The table '{table_name}' does not exist!\n")
+                    return None
+                else:
+                    pd.read_sql_table(table_name, con=create_engine(url)).to_csv(credentials['default_download_folder'] + "/" + download_path)
+        else:
+            sys.stdout.write(f"The database '{database}' does not exist!\n")
+            return None
+    except Exception as e:
+        sys.stdout.write(str(e) + "\n")
+
+
+if __name__ == '__main__':
+    download_dataset_from_database(database="video_games", table_name="video_game_sales", download_path="video_game_sales.csv")
+    # upload_dataset_to_database(database="video_games", table_name="video_game_sales", dataset="video game sales")
