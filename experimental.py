@@ -10,7 +10,7 @@ import kaggle
 from kaggle.api.kaggle_api_extended import KaggleApi
 from pprint import pprint
 
-
+DATASET_PATH = r"/home/vishal/AI and Machine Learning/datasets"
 METADATA = MetaData()
 
 def get_yaml_credentials():
@@ -45,7 +45,8 @@ def create_credentials_file():
     host = input("Enter your host. Default value is localhost: ") or "localhost"
     port = input("Enter your port. Default value is 3306: ") or "3306"
     connector = input("Enter your connector. List of connectors: \n[1] mysql+mysqlconnector\n[2] postgresql+psycopg2\n[3] \nDefault value is mysqlconnector: ") or "mysql+mysqlconnector"
-    file_name = ".database_credentials.yaml"
+    file_name = input("Enter your file name. Default value is .database_credentials.yaml: ") or ".database_credentials.yaml"
+    default_download_folder = input("Enter your default download folder. Default directory is the home directory('~/'): ") or "~"
 
     # Create the file
     home_directory = os.path.expanduser('~')
@@ -56,7 +57,8 @@ def create_credentials_file():
             "PASSWORD": password,
             "HOSTNAME": host,
             "PORT": port,
-            "CONNECTOR": connector
+            "CONNECTOR": connector,
+            "default_download_folder": default_download_folder
         }
     }
 
@@ -380,7 +382,14 @@ def delete_duplicates(dataframe: pd.DataFrame):
     Returns:
         pd.DataFrame: The dataframe with duplicates removed.
     """
+    if os.path.isdir(dataframe):
+        print(True)
+        for file in os.listdir(dataframe):
+            if file.endswith(".csv"):
+                print(file)
+                dataframe  = delete_duplicates(os.path.join(dataframe, file))
     if type(dataframe) != pd.DataFrame:
+        print(dataframe)
         sys.stdout.write("Not a pandas dataframe, trying to convert to pandas dataframe\n")
         dataframe = pd.DataFrame(pd.read_csv(dataframe, encoding="cp1252"))
         dataframe = dataframe.drop_duplicates()
@@ -486,6 +495,7 @@ def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
                     sys.stdout.write("Table already exists!\n")
                     return {500: "Dataframe already exists!"}
         else:
+            sys.stdout.write(f"Database does not exist! Creating database {database}...\n")
             create_database_function(database)
             return insert_dataframe(database=database, table_name=table_name, dataframe=dataframe)
     except ProgrammingError as e:
@@ -618,7 +628,8 @@ def search_kaggle_dataset(dataset: str = None, user: str = None):
         search_kaggle_dataset("video game")
     """
     count=1
-    if os.path.exists(os.path.expanduser('~') + "/.kaggle") and os.path.isfile(os.path.expanduser('~') + "/.kaggle/kaggle.json"):
+    home_folder = os.path.expanduser('~')
+    if os.path.exists(home_folder + "/.kaggle") and os.path.isfile(home_folder + "/.kaggle/kaggle.json"):
         api = KaggleApi()
         api.authenticate()
         dataset_dict = {}
@@ -640,7 +651,7 @@ def search_kaggle_dataset(dataset: str = None, user: str = None):
         sys.stdout.write("Invalid choice!\n Try again!\n")
         choice = int(input("\n\nChoose the dataset number: "))
         # dataset_dict[choice] = str(dataset_dict[choice]).split("/")[-1]
-    download_kaggle_dataset(dataset=str(dataset_dict[choice]), dataset_path=os.path.join(os.path.expanduser('~'), r"AI and Machine Learning/datasets"))
+    return str(dataset_dict[choice])
 
 def download_kaggle_dataset(dataset: str, dataset_path: str = None):
     """
@@ -656,24 +667,49 @@ def download_kaggle_dataset(dataset: str, dataset_path: str = None):
     Raises:
         None
     """
-    print(dataset)
-    if os.path.exists(os.path.expanduser('~') + "/.kaggle") and os.path.isfile(os.path.expanduser('~') + "/.kaggle/kaggle.json"):
+    home_folder = os.path.expanduser('~')
+    download_folder = home_folder + f"/AI and Machine Learning/datasets/{str(dataset).split('/')[-1]}"
+    if os.path.exists(home_folder + "/.kaggle") and os.path.isfile(home_folder + "/.kaggle/kaggle.json"):
         api = KaggleApi()
         api.authenticate()
+        sys.stdout.write(f"Authorized! Downloading {dataset}...")
+        api.dataset_download_files(dataset, path=dataset_path + f"/{str(dataset).split('/')[-1]}", unzip=True)
     else:
         sys.stdout.write("kaggle.json not found!\n")
         return None
-    if not os.path.exists(dataset_path):
-        os.makedirs(os.path.expanduser('~') + "/AI and Machine Learning/datasets/")
-    print(f"Before / check on : {dataset}")
+    if not os.path.exists(dataset_path + f"/{str(dataset).split('/')[-1]}"):
+        os.makedirs(download_folder)
+        api.dataset_download_files(dataset, path=dataset_path + f"/{str(dataset).split('/')[-1]}", unzip=True)
     if dataset and dataset_path:
-        api.dataset_download_files(dataset, path=dataset_path, unzip=True)
+        print("Dataset and path are not None!")
+        api.dataset_download_files(dataset, path=dataset_path + f"/{str(dataset).split('/')[-1]}", unzip=True)
     else:
         sys.stdout.write("Dataset and path cannot be None!\n")
         return None
 
+def upload_dataset_to_database(database: str = None, table_name: str = None, dataset: str = None, user: str = None, dataset_path: str = None):
+    """
+    Uploads a dataset to a database table.
+
+    Parameters:
+        database (str): The name of the database.
+        table_name (str): The name of the table in the database.
+        dataset (str): The name of the dataset to upload.
+        user (str): The name of the user who owns the dataset.
+        dataset_path (str): The path to the dataset on the local machine.
+
+    Returns:
+        None
+    """
+    dataset = search_kaggle_dataset(dataset=dataset, user=user)
+    download_kaggle_dataset(dataset=dataset, dataset_path=dataset_path)
+    for file in os.listdir(dataset_path + f"/{str(dataset).split('/')[-1]}"):
+        sys.stdout.write(file)
+        insert_dataframe(database=database, table_name=table_name, dataframe=dataset_path + f"/{str(dataset).split('/')[-1]}/" + file)
 
 if __name__ == '__main__':
-    search_kaggle_dataset("video game")
+    upload_dataset_to_database(database="video_games", table_name="video_game_sales", dataset="video game sales", dataset_path=DATASET_PATH)
+    # insert_dataframe("video_games", "video_game_sales")
+    # search_kaggle_dataset("video game")
 
     # print(get_data_from_database("isro", "isro_mission_launches")[0])
