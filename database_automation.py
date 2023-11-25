@@ -1,27 +1,29 @@
 from sqlalchemy import create_engine, Table, Column, Integer, MetaData, inspect, text
 from sqlalchemy_utils import create_database, database_exists, drop_database
 import pandas as pd
-import toml
+import yaml
 import os
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.exc import ProgrammingError
 import sys
+from kaggle.api.kaggle_api_extended import KaggleApi
+from pprint import pprint
 
 METADATA = MetaData()
 
-def get_toml_credentials():
+def get_yaml_credentials():
     """
     Read the TOML credentials file and return its contents.
 
     :return: A dictionary containing the contents of the TOML file.
     """
     home_directory = os.path.expanduser('~')
-    if not os.path.exists(rf"{home_directory}/.database_credentials.toml") or os.path.getsize(rf"{home_directory}/.database_credentials.toml") == 0:
+    if not os.path.exists(rf"{home_directory}/.database_credentials.yaml") or os.path.getsize(rf"{home_directory}/.database_credentials.yaml") == 0:
         create_credentials_file()
 
-    with open(rf"{home_directory}/.database_credentials.toml", 'r') as f:
-        toml_file = toml.load(f)
-    return toml_file.get("credentials")
+    with open(rf"{home_directory}/.database_credentials.yaml", 'r') as file:
+        yaml_file = yaml.safe_load(file)
+    return yaml_file.get("credentials")
 
 
 def create_credentials_file():
@@ -40,8 +42,9 @@ def create_credentials_file():
     password = input("Enter your password: ")
     host = input("Enter your host. Default value is localhost: ") or "localhost"
     port = input("Enter your port. Default value is 3306: ") or "3306"
-    connector = input("Enter your connector. Default value is mysqlconnector: ") or "mysql+mysqlconnector"
-    file_name = ".database_credentials.toml"
+    connector = input("Enter your connector. List of connectors: \n[1] mysql+mysqlconnector\n[2] postgresql+psycopg2\n[3] \nDefault value is mysqlconnector: ") or "mysql+mysqlconnector"
+    file_name = input("Enter your file name. Default value is .database_credentials.yaml: ") or ".database_credentials.yaml"
+    default_download_folder = input("Enter your default download folder. Default directory is the kaggle_datasets directory('~/kaggle_datasets'): ") or "~/kaggle_datasets"
 
     # Create the file
     home_directory = os.path.expanduser('~')
@@ -52,16 +55,17 @@ def create_credentials_file():
             "PASSWORD": password,
             "HOSTNAME": host,
             "PORT": port,
-            "CONNECTOR": connector
+            "CONNECTOR": connector,
+            "default_download_folder": default_download_folder
         }
     }
 
     with open(file_path, "w") as file:
-        sys.stdout.write("Creating credentials file in {file_path}...".format(file_path=file_path))
-        toml.dump(data, file)
+        sys.stdout.write(f"Creating credentials file in {file_path}...")
+        yaml.safe_dump(data, file)
 
     with open(file_path, "r") as file:
-        return toml.load(file)["credentials"]
+        return yaml.safe_load(file)["credentials"]
 
 def create_database_function(database: str):
     """
@@ -75,7 +79,7 @@ def create_database_function(database: str):
         tuple: If an exception occurs during the creation of the database, a tuple with None as the first element and the exception as the second element will be returned.
     """
     try:
-        credentials = get_toml_credentials()
+        credentials = get_yaml_credentials()
         URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
         engine = create_engine(URL)
         connection = engine.connect()
@@ -101,7 +105,7 @@ def delete_database_function(database: str):
         If an exception occurs during the deletion process, the exception object is returned.
     """
     try:
-        credentials = get_toml_credentials()
+        credentials = get_yaml_credentials()
         URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
         with create_engine(URL).connect() as connection:
             if database_exists(f"{URL}/{database}"):
@@ -124,11 +128,11 @@ def create_tables(database: str, *table_names: str, column_name: str = None):
         str or dict: If the tables are successfully created, returns 'Table already exists!' if the table already exists in the database. If the database does not exist, returns a dictionary with the key 'Error!' and the value 'Database does not exist!'. If an exception occurs during the table creation process, returns the exception object.
     """
     try:
-        credentials = get_toml_credentials()
-        USER = credentials.get("USER")
-        PASSWORD = credentials.get("PASSWORD")
-        HOSTNAME = credentials.get("HOSTNAME")
-        connector = credentials.get("CONNECTOR")
+        credentials = get_yaml_credentials()
+        USER = credentials["USER"]
+        PASSWORD = credentials["PASSWORD"]
+        HOSTNAME = credentials["HOSTNAME"]
+        connector = credentials["CONNECTOR"]
         URL = f"{connector}://{USER}:{PASSWORD}@{HOSTNAME}/{database}"
         engine = create_engine(URL, echo=True)
         inspector = inspect(engine)
@@ -164,8 +168,8 @@ def delete_tables(database: str, *table_names: str):
             if any other error occurs.
     """
     try:
-        credentials = get_toml_credentials()
-        URL = f"{credentials.get('CONNECTOR')}://{credentials.get('USER')}:{credentials.get('PASSWORD')}@{credentials.get('HOSTNAME')}"
+        credentials = get_yaml_credentials()
+        URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
         engine = create_engine(URL + f"/{database}")
         inspector = inspect(engine)
 
@@ -204,11 +208,11 @@ def insert_columns(database: str, table_name: str, column_name: str, datatype: s
         Exception: If an error occurs during the insertion process.
     """
     try:
-        credentials = get_toml_credentials()
-        USER = credentials.get("USER")
-        PASSWORD = credentials.get("PASSWORD")
-        HOSTNAME = credentials.get("HOSTNAME")
-        connector = credentials.get("CONNECTOR")
+        credentials = get_yaml_credentials()
+        USER = credentials["USER"]
+        PASSWORD = credentials["PASSWORD"]
+        HOSTNAME = credentials["HOSTNAME"]
+        connector = credentials["CONNECTOR"]
         URL = f"{connector}://{USER}:{PASSWORD}@{HOSTNAME}/{database}"
 
         engine = create_engine(URL)
@@ -237,7 +241,7 @@ def delete_columns(database: str, table_name: str, column_name: str):
         If the database or table does not exist, an error message is returned.
     """
     try:
-        credentials = get_toml_credentials()
+        credentials = get_yaml_credentials()
         URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}/{database}"
 
         engine = create_engine(URL)
@@ -270,8 +274,8 @@ def modify_column(database: str, table_name: str, column_name: str, command: str
         str: If the modification is successful, returns an empty string. Otherwise, returns an error message.
     """
     try:
-        credentials = get_toml_credentials()
-        URL = f"{credentials.get('CONNECTOR')}://{credentials.get('USER')}:{credentials.get('PASSWORD')}@{credentials.get('HOSTNAME')}"
+        credentials = get_yaml_credentials()
+        URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
 
         with create_engine(URL + f"/{database}").connect() as connection:
             inspector = inspect(connection)
@@ -303,8 +307,8 @@ def inspect_columns(database: str, table: str, *column: str):
     """
 
     try:
-        credentials = get_toml_credentials()
-        URL = f"{credentials.get('CONNECTOR')}://{credentials.get('USER')}:{credentials.get('PASSWORD')}@{credentials.get('HOSTNAME')}"
+        credentials = get_yaml_credentials()
+        URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
         engine = create_engine(URL + f"/{database}")
         inspector = inspect(engine)
 
@@ -332,7 +336,7 @@ def query(database: str, table_name: str, filter_condition: str):
         Exception: If any error occurs during the query execution.
     """
     try:
-        credentials = get_toml_credentials()
+        credentials = get_yaml_credentials()
         URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
         with create_engine(f"{URL}/{database}").connect() as connection:
             inspector = inspect(connection)
@@ -356,7 +360,7 @@ def check_for_duplicates(database: str, table_name: str, column_name: str):
         list: A list of rows representing the duplicate values found in the column.
     """
 
-    credentials = get_toml_credentials()
+    credentials = get_yaml_credentials()
     URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
     with create_engine(f"{URL}/{database}").connect() as connection:
         inspector = inspect(connection)
@@ -376,10 +380,21 @@ def delete_duplicates(dataframe: pd.DataFrame):
     Returns:
         pd.DataFrame: The dataframe with duplicates removed.
     """
+    if os.path.isdir(dataframe):
+        print(True)
+        for file in os.listdir(dataframe):
+            if file.endswith(".csv"):
+                print(file)
+                dataframe  = delete_duplicates(os.path.join(dataframe, file))
     if type(dataframe) != pd.DataFrame:
+        print(dataframe)
         sys.stdout.write("Not a pandas dataframe, trying to convert to pandas dataframe\n")
         dataframe = pd.DataFrame(pd.read_csv(dataframe, encoding="cp1252"))
-        return dataframe.drop_duplicates()
+        dataframe = dataframe.drop_duplicates()
+        return dataframe
+    else:
+        dataframe = dataframe.drop_duplicates()
+        return dataframe
 
 
 def get_data_from_database(database: str = None, table_name: str = None):
@@ -401,7 +416,7 @@ def get_data_from_database(database: str = None, table_name: str = None):
         return "Please provide both database and table name as arguments to the function. \nExample: get_data_from_database(database='food_db', table_name='food_recipes')"
 
     try:
-        credentials = get_toml_credentials()
+        credentials = get_yaml_credentials()
         url = generate_database_url(credentials, database=database)
         with create_engine(url).connect() as connection:
             if connection:
@@ -460,26 +475,32 @@ def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
         str or ProgrammingError: A success message if the DataFrame is inserted successfully,
             or a ProgrammingError if an exception occurs.
     """
+    # print(dataframe.__str__())
+    # print(dataframe.)
     dataframe = delete_duplicates(dataframe)
     print("Dataframe created successfully!")
-    url = generate_database_url(get_toml_credentials(), database)
+    url = generate_database_url(get_yaml_credentials(), database)
     print("Database URL generated successfully!")
     try:
         if database_exists(url):
             with create_engine(url).connect() as connection:
                 if not database_exists(url):
                     create_database_function(database)
-                if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0:
+                if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0 and dataframe is not None:
                     dataframe.to_sql(name=table_name, con=create_engine(url), if_exists='replace', index=False)
-                return "Dataframe inserted successfully!"
+                    return {200: "Dataframe inserted successfully!"}
+                else:
+                    sys.stdout.write("Table already exists!\n")
+                    return {500: "Dataframe already exists!"}
         else:
+            sys.stdout.write(f"Database does not exist! Creating database {database}...\n")
             create_database_function(database)
             return insert_dataframe(database=database, table_name=table_name, dataframe=dataframe)
     except ProgrammingError as e:
-        sys.stdout.write(str(e))
         return e
 
-def add_new_data_to_table(database: str, table_name: str):
+
+def add_new_data_to_table(database: str = None, table_name: str = None, dataframe: pd.DataFrame = None):
     """
     Adds new data to a table in a given database.
 
@@ -490,29 +511,240 @@ def add_new_data_to_table(database: str, table_name: str):
     Returns:
         None
     """
-    url = generate_database_url(get_toml_credentials(), database=database)
+    url = generate_database_url(get_yaml_credentials(), database=database)
+    try:
+        if database_exists(url):
+            if dataframe and type(dataframe) == pd.DataFrame:
+                existing_data = pd.read_sql_table(table_name, con=create_engine(url))
+                if existing_data.keys() == dataframe.keys():
+                    dataframe.to_sql(name=table_name, con=create_engine(url), if_exists='append', index=False)
+                else:
+                    sys.stdout.write("The columns in the dataframe do not match the columns in the table.\n")
+                    return None
+            new_row = {}
+            existing_data = pd.DataFrame(pd.read_sql_table(table_name, con=create_engine(url)))
+            for column in existing_data.columns:
+                sys.stdout.write(column)
+                new_row[column] = input(f"Enter value for {column}: ")
+            new_row_df = pd.DataFrame(new_row, index=[0])
+            updated_data = pd.concat([existing_data, new_row_df], ignore_index=True)
+            updated_data = updated_data.drop_duplicates()
+            updated_data.to_sql(name=table_name, con=create_engine(url), if_exists='replace', index=False)
+            sys.stdout.write("Dataframe inserted successfully!\n")
+            return {200: "Dataframe inserted successfully!"}
+        else:
+            sys.stdout.write(f"The database '{database}' does not exist!\n")
+            return None
+    except Exception as e:
+        sys.stdout.write(str(e) + "\n")
+
+
+
+def add_pk(database: str, table_name: str, constraint_name: str, column_name: str, delete_constraint: bool):
+    """
+    Add constraints to a table in a given database.
+
+    Args:
+        database (str): The name of the database.
+        table_name (str): The name of the table.
+        constraint_name (str): The name of the constraint.
+        column_name (str): The name of the column to be constrained.
+
+    Returns:
+        None
+    """
+    url = generate_database_url(get_yaml_credentials(), database=database)
     try:
         if database_exists(url):
             with create_engine(url).connect() as connection:
-                existing_data = pd.read_sql_table(table_name, con=create_engine(url))
-                columns = existing_data.columns
-                print(columns)
-                new_row = {}
-                new_row_df = pd.DataFrame(new_row, index=[0])
-                updated_data = existing_data.append(new_row_df, ignore_index=True)
-                updated_data.to_sql(name=table_name, con=create_engine(url), if_exists='replace', index=False)
+                if not database_exists(url):
+                    create_database_function(database)
+                if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0:
+                    sys.stdout.write(f"The table '{table_name}' does not exist!\n")
+                    return None
+                else:
+                    existing_data = pd.read_sql_table(table_name, con=create_engine(url))
+                    columns = existing_data.columns
+                    if column_name in [column for column in columns]:
+                        connection.execute(text(f"ALTER TABLE {table_name} ADD CONSTRAINT {constraint_name} PRIMARY KEY (`{column_name}`)"))
+                        sys.stdout.write("Constraint added successfully!\n")
+                    else:
+                        sys.stdout.write(f"Column does not exist!\nHere are the existing columns: {[column for column in columns]}\n")
+                        return None
         else:
-            sys.stdout.write(f"The database '{database}' does not exist.")
+            sys.stdout.write(f"The database '{database}' does not exist!\n")
             return None
     except Exception as e:
         sys.stdout.write(str(e))
-        #         if not database_exists(url):
-        #             create_database_function(database)
-        #         dataframe.to_sql(name=table_name, con=create_engine(url), if_exists='append', index=False)
-        #         return "Dataframe inserted successfully!"
-        # else:
-        #     create_database_function(database)
-        #     return add_new_data_to_table(database=database, table_name=table_name, dataframe=dataframe)
+
+
+def delete_pk(database: str, table_name: str):
+    """
+    Delete constraints from a table in a given database.
+
+    Args:
+        database (str): The name of the database.
+        table_name (str): The name of the table.
+        constraint_name (str): The name of the constraint.
+
+    Returns:
+        None
+    """
+    url = generate_database_url(get_yaml_credentials(), database=database)
+    try:
+        if database_exists(url):
+            with create_engine(url).connect() as connection:
+                if not database_exists(url):
+                    create_database_function(database)
+                if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0:
+                    sys.stdout.write(f"The table '{table_name}' does not exist!\n")
+                    return None
+                else:
+                    connection.execute(text(f"ALTER TABLE {table_name} DROP PRIMARY KEY"))
+                    sys.stdout.write("PRIMARY KEY deleted successfully!\n")
+        else:
+            sys.stdout.write(f"The database '{database}' does not exist!\n")
+            return None
+    except ProgrammingError as e:
+        sys.stdout.write(str(e) + "\n")
+
+def search_kaggle_datasets(dataset: str = None, user: str = None):
+    """
+    Searches for a Kaggle dataset and returns the dataset information in a dictionary.
+
+    Parameters:
+        dataset (str): The name of the dataset to search for.
+        user (str): The name of the user to search for.
+
+    Returns:
+        dict: A dictionary containing the dataset information. The keys are the indices of the datasets, and the values are the dataset objects.
+
+    Raises:
+        None
+
+    Example:
+        search_kaggle_datasets("video game")
+    """
+    count=1
+    home_folder = os.path.expanduser('~')
+    if os.path.exists(home_folder + "/.kaggle") and os.path.isfile(home_folder + "/.kaggle/kaggle.json"):
+        api = KaggleApi()
+        api.authenticate()
+        dataset_dict = {}
+
+    if dataset:
+        if user:
+            for _dataset in api.dataset_list(search=dataset, user=user):
+                dataset_dict[count] = f"{_dataset} found at https://www.kaggle.com/datasets/{_dataset}"
+                count+=1
+        else:
+            for _dataset in api.dataset_list(search=dataset):
+                dataset_dict[count] = f"{_dataset} found at https://www.kaggle.com/datasets/{_dataset}"
+                count+=1
+    elif dataset and user:
+        for _dataset in api.dataset_list(search=dataset, user=user):
+            dataset_dict[count] = f"{_dataset} found at https://www.kaggle.com/datasets/{_dataset}"
+        return dataset_dict
+    else:
+        return None
+    pprint(dataset_dict)
+    choice = int(input("\n\nChoose the dataset number: "))
+    while choice not in dataset_dict:
+        sys.stdout.write("Invalid choice!\n Try again!\n")
+        choice = int(input("\n\nChoose the dataset number: "))
+        # dataset_dict[choice] = str(dataset_dict[choice]).split("/")[-1]
+    return str(dataset_dict[choice])
+
+def download_kaggle_dataset(dataset: str, dataset_path: str = None):
+    """
+    Download a Kaggle dataset.
+
+    Args:
+        dataset (str): The name of the Kaggle dataset.
+        path (str, optional): The path to save the downloaded files. Defaults to None.
+
+    Returns:
+        None
+
+    Raises:
+        None
+    """
+    home_folder = os.path.expanduser('~')
+    download_folder = home_folder + f"/AI and Machine Learning/datasets/{str(dataset).split('/')[-1]}"
+    if not os.path.exists(home_folder + "/.kaggle") and os.path.isfile(home_folder + "/.kaggle/kaggle.json"):
+        sys.stdout.write("kaggle.json not found!\n")
+        return None
+    if os.path.exists(home_folder + "/.kaggle") and os.path.isfile(home_folder + "/.kaggle/kaggle.json"):
+        api = KaggleApi()
+        api.authenticate()
+        sys.stdout.write(f"Authorized! Downloading {dataset}...")
+        api.dataset_download_files(dataset, path=dataset_path + f"/{str(dataset).split('/')[-1]}", unzip=True)
+        return True
+    elif not os.path.exists(dataset_path + f"/{str(dataset).split('/')[-1]}"):
+        os.makedirs(download_folder)
+        api.dataset_download_files(dataset, path=dataset_path + f"/{str(dataset).split('/')[-1]}", unzip=True)
+    elif dataset and dataset_path:
+        print("Dataset and path are not None!\n")
+        api.dataset_download_files(dataset, path=dataset_path + f"/{str(dataset).split('/')[-1]}", unzip=True)
+    else:
+        sys.stdout.write("kaggle.json not found!\n")
+        return None
+
+def upload_dataset_to_database(database: str = None, table_name: str = None, dataset: str = None, user: str = None, dataset_path: str = None):
+    """
+    Uploads a dataset to a database table.
+
+    Parameters:
+        database (str): The name of the database.
+        table_name (str): The name of the table in the database.
+        dataset (str): The name of the dataset to upload.
+        user (str): The name of the user who owns the dataset.
+        dataset_path (str): The path to the dataset on the local machine.
+
+    Returns:
+        None
+    """
+    credentials = get_yaml_credentials()
+    dataset_path = credentials['default_download_folder']
+    dataset = search_kaggle_datasets(dataset=dataset, user=user)
+    download_kaggle_dataset(dataset=dataset, dataset_path=dataset_path)
+    for file in os.listdir(dataset_path + f"/{str(dataset).split('/')[-1]}"):
+        sys.stdout.write(file)
+        insert_dataframe(database=database, table_name=table_name, dataframe=dataset_path + f"/{str(dataset).split('/')[-1]}/" + file)
+
+
+def download_dataset_from_database(database: str, table_name: str, download_path: str):
+    """
+    Downloads a dataset from a database table.
+
+    Parameters:
+        database (str): The name of the database.
+        table_name (str): The name of the table in the database.
+        download_path (str): The path to download the dataset to.
+
+    Returns:
+        None
+    """
+    credentials = get_yaml_credentials()
+    url = generate_database_url(credentials, database=database)
+    try:
+        if database_exists(url):
+            with create_engine(url).connect() as connection:
+                if not database_exists(url):
+                    create_database_function(database)
+                if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0:
+                    sys.stdout.write(f"The table '{table_name}' does not exist!\n")
+                    return None
+                else:
+                    pd.read_sql_table(table_name, con=create_engine(url)).to_csv(credentials['default_download_folder'] + "/" + download_path)
+        else:
+            sys.stdout.write(f"The database '{database}' does not exist!\n")
+            return None
+    except Exception as e:
+        sys.stdout.write(str(e) + "\n")
+        return None
+
 if __name__ == '__main__':
-    print(insert_dataframe(database="isro", table_name="isro_mission_launches", dataframe="ISRO mission launches.csv"))
-    # print(get_data_from_database(database="isro", table_name="isro_mission_launches"))
+    search_kaggle_datasets(dataset="mnist")
+    # download_dataset_from_database(database="video_games", table_name="video_game_sales", download_path="video_game_sales.csv")
+    # upload_dataset_to_database(database="video_games", table_name="video_game_sales", dataset="video game sales")
