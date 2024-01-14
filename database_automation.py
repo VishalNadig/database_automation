@@ -3,19 +3,31 @@ from sqlalchemy_utils import create_database, database_exists, drop_database
 import pandas as pd
 import yaml
 import os
+import logging
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.exc import ProgrammingError
 import sys
 from kaggle.api.kaggle_api_extended import KaggleApi
 from pprint import pprint
+LOGFILE = r"C:\Users\nadig\git\trading_bot\database_automation_LOGFILE.log"
+
 
 METADATA = MetaData()
 
+
+logging.basicConfig(
+    level=logging.INFO,
+    filemode="a",
+    filename=LOGFILE,
+    format="%(asctime)s;%(levelname)s;%(message)s",
+)
+
+
 def get_yaml_credentials():
     """
-    Read the TOML credentials file and return its contents.
+    Read the YAML credentials file and return its contents.
 
-    :return: A dictionary containing the contents of the TOML file.
+    Returns: A dictionary containing the contents of the YAML file.
     """
     home_directory = os.path.expanduser('~')
     if not os.path.exists(rf"{home_directory}/.database_credentials.yaml") or os.path.getsize(rf"{home_directory}/.database_credentials.yaml") == 0:
@@ -30,8 +42,6 @@ def create_credentials_file():
     """
     Creates a credentials file with the user's input for username, password, and host.
 
-    Parameters:
-        None
 
     Returns:
         credentials (dict): A dictionary containing the user's credentials
@@ -67,6 +77,7 @@ def create_credentials_file():
     with open(file_path, "r") as file:
         return yaml.safe_load(file)["credentials"]
 
+
 def create_database_function(database: str):
     """
     Create a database function.
@@ -89,6 +100,7 @@ def create_database_function(database: str):
         return {"Already Exists!": "Database Already Exists!"}
     except Exception as exception:
         return (None, exception)
+
 
 def delete_database_function(database: str):
     """
@@ -115,6 +127,7 @@ def delete_database_function(database: str):
                 return {"Doesn't Exist!": "Database doesn't Exist!"}
     except Exception as exception:
         return exception
+
 
 def create_tables(database: str, *table_names: str, column_name: str = None):
     """
@@ -154,6 +167,7 @@ def create_tables(database: str, *table_names: str, column_name: str = None):
     except Exception as e:
         return e
 
+
 def delete_tables(database: str, *table_names: str):
     """
     Deletes specified tables from a given database.
@@ -188,6 +202,7 @@ def delete_tables(database: str, *table_names: str):
 
     except Exception as exception:
         return exception
+
 
 def insert_columns(database: str, table_name: str, column_name: str, datatype: str, size: str, command: str):
     """
@@ -260,6 +275,7 @@ def delete_columns(database: str, table_name: str, column_name: str):
 
     return {}
 
+
 def modify_column(database: str, table_name: str, column_name: str, command: str):
     """
     Modifies a column in a database table.
@@ -322,6 +338,7 @@ def inspect_columns(database: str, table: str, *column: str):
     except Exception as exception:
         return exception
 
+
 def query(database: str, table_name: str, filter_condition: str):
     """
     Executes a query on the specified database table using the provided filter condition.
@@ -346,7 +363,6 @@ def query(database: str, table_name: str, filter_condition: str):
         return exception
 
 
-
 def check_for_duplicates(database: str, table_name: str, column_name: str):
     """
     Check for duplicates in a specific column of a table in a given database.
@@ -367,7 +383,6 @@ def check_for_duplicates(database: str, table_name: str, column_name: str):
         if database_exists(f"{URL}/{database}") and table_name in inspector.get_table_names():
             query = f"SELECT {column_name} FROM {table_name} GROUP BY {column_name} HAVING COUNT({column_name}) > 1"
             return connection.execute(query).fetchall()
-
 
 
 def delete_duplicates(dataframe: pd.DataFrame):
@@ -432,6 +447,7 @@ def get_data_from_database(database: str = None, table_name: str = None):
 
     except ProgrammingError as exception:
         return exception
+
 
 def generate_database_url(credentials: dict, database: str):
     """
@@ -539,7 +555,6 @@ def add_new_data_to_table(database: str = None, table_name: str = None, datafram
         sys.stdout.write(str(e) + "\n")
 
 
-
 def add_pk(database: str, table_name: str, constraint_name: str, column_name: str, delete_constraint: bool):
     """
     Add constraints to a table in a given database.
@@ -608,6 +623,7 @@ def delete_pk(database: str, table_name: str):
     except ProgrammingError as e:
         sys.stdout.write(str(e) + "\n")
 
+
 def search_kaggle_datasets(dataset: str = None, user: str = None):
     """
     Searches for a Kaggle dataset and returns the dataset information in a dictionary.
@@ -655,6 +671,7 @@ def search_kaggle_datasets(dataset: str = None, user: str = None):
         # dataset_dict[choice] = str(dataset_dict[choice]).split("/")[-1]
     return str(dataset_dict[choice])
 
+
 def download_kaggle_dataset(dataset: str, dataset_path: str = None):
     """
     Download a Kaggle dataset.
@@ -689,6 +706,7 @@ def download_kaggle_dataset(dataset: str, dataset_path: str = None):
     else:
         sys.stdout.write("kaggle.json not found!\n")
         return None
+
 
 def upload_dataset_to_database(database: str = None, table_name: str = None, dataset: str = None, user: str = None, dataset_path: str = None):
     """
@@ -743,6 +761,7 @@ def download_dataset_from_database(database: str, table_name: str, download_path
     except Exception as e:
         sys.stdout.write(str(e) + "\n")
         return None
+
 
 if __name__ == '__main__':
     search_kaggle_datasets(dataset="mnist")
