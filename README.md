@@ -3,14 +3,14 @@ Python code with sqlalchemy for automating querying the database.
 
 
 # DOCUMENTATION
-def get_yaml_credentials():
+## get_yaml_credentials():
     """
     Read the YAML credentials file and return its contents.
 
     Returns: A dictionary containing the contents of the YAML file.
     """
 
-def create_credentials_file():
+## create_credentials_file():
     """
     Creates a credentials file with the user's input for username, password, and host.
 
@@ -19,7 +19,7 @@ def create_credentials_file():
         credentials (dict): A dictionary containing the user's credentials
     """
 
-def create_database_function(database: str):
+## create_database_function(database: str):
     """
     Create a database function.
 
@@ -31,7 +31,7 @@ def create_database_function(database: str):
         tuple: If an exception occurs during the creation of the database, a tuple with None as the first element and the exception as the second element will be returned.
     """
 
-def delete_database_function(database: str):
+## delete_database_function(database: str):
     """
     Deletes a database with the given name.
 
@@ -46,7 +46,7 @@ def delete_database_function(database: str):
         If an exception occurs during the deletion process, the exception object is returned.
     """
 
-def create_tables(database: str, *table_names: str, column_name: str = None):
+## create_tables(database: str, *table_names: str, column_name: str = None):
     """
     Creates tables in a specified database.
 
@@ -58,7 +58,7 @@ def create_tables(database: str, *table_names: str, column_name: str = None):
         str or dict: If the tables are successfully created, returns 'Table already exists!' if the table already exists in the database. If the database does not exist, returns a dictionary with the key 'Error!' and the value 'Database does not exist!'. If an exception occurs during the table creation process, returns the exception object.
     """
 
-def delete_tables(database: str, *table_names: str):
+## delete_tables(database: str, *table_names: str):
     """
     Deletes specified tables from a given database.
 
@@ -73,7 +73,7 @@ def delete_tables(database: str, *table_names: str):
     """
     
 
-def insert_columns(database: str, table_name: str, column_name: str, datatype: str, size: str, command: str):
+## insert_columns(database: str, table_name: str, column_name: str, datatype: str, size: str, command: str):
     """
     Insert columns into a database table.
 
@@ -92,7 +92,7 @@ def insert_columns(database: str, table_name: str, column_name: str, datatype: s
         Exception: If an error occurs during the insertion process.
     """
 
-def delete_columns(database: str, table_name: str, column_name: str):
+## delete_columns(database: str, table_name: str, column_name: str):
     """
     Deletes a column from a specified table in a given database.
 
@@ -108,7 +108,7 @@ def delete_columns(database: str, table_name: str, column_name: str):
     """
     
 
-def modify_column(database: str, table_name: str, column_name: str, command: str):
+## modify_column(database: str, table_name: str, column_name: str, command: str):
     """
     Modifies a column in a database table.
 
@@ -122,7 +122,7 @@ def modify_column(database: str, table_name: str, column_name: str, command: str
         str: If the modification is successful, returns an empty string. Otherwise, returns an error message.
     """
 
-def inspect_columns(database: str, table: str, *column: str):
+## inspect_columns(database: str, table: str, *column: str):
     """
     Get information about columns in a database table.
 
@@ -137,7 +137,7 @@ def inspect_columns(database: str, table: str, *column: str):
         Exception: An exception object if an error occurs.
     """
 
-def query(database: str, table_name: str, filter_condition: str):
+## query(database: str, table_name: str, filter_condition: str):
     """
     Executes a query on the specified database table using the provided filter condition.
 
@@ -151,7 +151,7 @@ def query(database: str, table_name: str, filter_condition: str):
         Exception: If any error occurs during the query execution.
     """
     
-def check_for_duplicates(database: str, table_name: str, column_name: str):
+## check_for_duplicates(database: str, table_name: str, column_name: str):
     """
     Check for duplicates in a specific column of a table in a given database.
 
@@ -164,7 +164,7 @@ def check_for_duplicates(database: str, table_name: str, column_name: str):
         list: A list of rows representing the duplicate values found in the column.
     """
 
-  def delete_duplicates(dataframe: pd.DataFrame):
+  ## delete_duplicates(dataframe: pd.DataFrame):
     """
     Delete duplicates from the given dataframe.
 
@@ -175,7 +175,7 @@ def check_for_duplicates(database: str, table_name: str, column_name: str):
         pd.DataFrame: The dataframe with duplicates removed.
     """
 
-def get_data_from_database(database: str = None, table_name: str = None):
+## get_data_from_database(database: str = None, table_name: str = None):
     """
     Retrieves data from a specified database table.
 
@@ -191,7 +191,7 @@ def get_data_from_database(database: str = None, table_name: str = None):
         ProgrammingError: If there is an exception while executing the SQL query.
     """
 
-def generate_database_url(credentials: dict, database: str):
+## generate_database_url(credentials: dict, database: str):
     """
     Generate a database URL using the given credentials and database name.
 
@@ -218,7 +218,7 @@ def generate_database_url(credentials: dict, database: str):
         'mysql://root:password@localhost/mydatabase'
     """
 
-def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
+## insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
     """
     Inserts a DataFrame into a specified database table.
 
@@ -232,7 +232,7 @@ def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
             or a ProgrammingError if an exception occurs.
     """
 
-def add_new_data_to_table(database: str = None, table_name: str = None, dataframe: pd.DataFrame = None):
+## add_new_data_to_table(database: str = None, table_name: str = None, dataframe: pd.DataFrame = None):
     """
     Adds new data to a table in a given database.
 
@@ -244,7 +244,7 @@ def add_new_data_to_table(database: str = None, table_name: str = None, datafram
         None
     """
   
-def add_pk(database: str, table_name: str, constraint_name: str, column_name: str, delete_constraint: bool):
+## add_pk(database: str, table_name: str, constraint_name: str, column_name: str, delete_constraint: bool):
     """
     Add constraints to a table in a given database.
 
@@ -258,7 +258,7 @@ def add_pk(database: str, table_name: str, constraint_name: str, column_name: st
         None
     """
 
-def delete_pk(database: str, table_name: str):
+## delete_pk(database: str, table_name: str):
     """
     Delete constraints from a table in a given database.
 
@@ -271,7 +271,7 @@ def delete_pk(database: str, table_name: str):
         None
     """
     
-def search_kaggle_datasets(dataset: str = None, user: str = None):
+## search_kaggle_datasets(dataset: str = None, user: str = None):
     """
     Searches for a Kaggle dataset and returns the dataset information in a dictionary.
 
@@ -289,7 +289,7 @@ def search_kaggle_datasets(dataset: str = None, user: str = None):
         search_kaggle_datasets("video game")
     """
     
-def download_kaggle_dataset(dataset: str, dataset_path: str = None):
+## download_kaggle_dataset(dataset: str, dataset_path: str = None):
     """
     Download a Kaggle dataset.
 
@@ -304,7 +304,7 @@ def download_kaggle_dataset(dataset: str, dataset_path: str = None):
         None
     """
     
-def upload_dataset_to_database(database: str = None, table_name: str = None, dataset: str = None, user: str = None, dataset_path: str = None):
+## upload_dataset_to_database(database: str = None, table_name: str = None, dataset: str = None, user: str = None, dataset_path: str = None):
     """
     Uploads a dataset to a database table.
 
@@ -319,7 +319,7 @@ def upload_dataset_to_database(database: str = None, table_name: str = None, dat
         None
     """
   
-def download_dataset_from_database(database: str, table_name: str, download_path: str):
+## download_dataset_from_database(database: str, table_name: str, download_path: str):
     """
     Downloads a dataset from a database table.
 
