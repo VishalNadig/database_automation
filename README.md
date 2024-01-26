@@ -3,6 +3,11 @@ Python code with sqlalchemy for automating querying the database.
 
 
 # DOCUMENTATION
+
+# GENERAL INFORMATION
+1. You will need the kaggle API keys to access the kaggle datasets.
+2. You will need the database credentials file. You can create one if it does not exist!
+
 ## get_yaml_credentials:
     """
     Read the YAML credentials file and return its contents.
