@@ -3,14 +3,14 @@ Python code with sqlalchemy for automating querying the database.
 
 
 # DOCUMENTATION
-## get_yaml_credentials():
+## get_yaml_credentials:
     """
     Read the YAML credentials file and return its contents.
 
     Returns: A dictionary containing the contents of the YAML file.
     """
 
-## create_credentials_file():
+## create_credentials_file:
     """
     Creates a credentials file with the user's input for username, password, and host.
 
@@ -19,7 +19,7 @@ Python code with sqlalchemy for automating querying the database.
         credentials (dict): A dictionary containing the user's credentials
     """
 
-## create_database_function(database: str):
+## create_database_function:
     """
     Create a database function.
 
@@ -31,7 +31,7 @@ Python code with sqlalchemy for automating querying the database.
         tuple: If an exception occurs during the creation of the database, a tuple with None as the first element and the exception as the second element will be returned.
     """
 
-## delete_database_function(database: str):
+## delete_database_function:
     """
     Deletes a database with the given name.
 
@@ -46,7 +46,7 @@ Python code with sqlalchemy for automating querying the database.
         If an exception occurs during the deletion process, the exception object is returned.
     """
 
-## create_tables(database: str, *table_names: str, column_name: str = None):
+## create_tables:
     """
     Creates tables in a specified database.
 
@@ -55,10 +55,10 @@ Python code with sqlalchemy for automating querying the database.
         *table_names (str): Variable length argument list of table names to create.
 
     Returns:
-        str or dict: If the tables are successfully created, returns 'Table already exists!' if the table already exists in the database. If the database does not exist, returns a dictionary with the key 'Error!' and the value 'Database does not exist!'. If an exception occurs during the table creation process, returns the exception object.
+        or dict: If the tables are successfully created, returns 'Table already exists!' if the table already exists in the database. If the database does not exist, returns a dictionary with the key 'Error!' and the value 'Database does not exist!'. If an exception occurs during the table creation process, returns the exception object.
     """
 
-## delete_tables(database: str, *table_names: str):
+## delete_tables:
     """
     Deletes specified tables from a given database.
 
@@ -67,13 +67,13 @@ Python code with sqlalchemy for automating querying the database.
         *table_names (str): The names of the tables to be deleted.
 
     Returns:
-        str or Exception: Returns "database doesn't exist!" if the database doesn't exist,
+        or Exception: Returns "database doesn't exist!" if the database doesn't exist,
             "Tables don't exist!" if the specified tables don't exist, or an Exception object
             if any other error occurs.
     """
     
 
-## insert_columns(database: str, table_name: str, column_name: str, datatype: str, size: str, command: str):
+## insert_columns:
     """
     Insert columns into a database table.
 
@@ -86,13 +86,13 @@ Python code with sqlalchemy for automating querying the database.
         command (str): The command to be executed after inserting the column.
 
     Returns:
-        str: A success message if the columns are inserted successfully, otherwise an exception message.
+       : A success message if the columns are inserted successfully, otherwise an exception message.
 
     Raises:
         Exception: If an error occurs during the insertion process.
     """
 
-## delete_columns(database: str, table_name: str, column_name: str):
+## delete_columns:
     """
     Deletes a column from a specified table in a given database.
 
@@ -108,7 +108,7 @@ Python code with sqlalchemy for automating querying the database.
     """
     
 
-## modify_column(database: str, table_name: str, column_name: str, command: str):
+## modify_column:
     """
     Modifies a column in a database table.
 
@@ -119,10 +119,10 @@ Python code with sqlalchemy for automating querying the database.
         command (str): The modification command to execute.
 
     Returns:
-        str: If the modification is successful, returns an empty string. Otherwise, returns an error message.
+       : If the modification is successful, returns an emptying. Otherwise, returns an error message.
     """
 
-## inspect_columns(database: str, table: str, *column: str):
+## inspect_columns:
     """
     Get information about columns in a database table.
 
@@ -133,11 +133,11 @@ Python code with sqlalchemy for automating querying the database.
 
     Returns:
         list: A list of column information if no column names are specified, or a list of values for the specified columns.
-        str: "Table doesn't Exist!" if the table doesn't exist.
+       : "Table doesn't Exist!" if the table doesn't exist.
         Exception: An exception object if an error occurs.
     """
 
-## query(database: str, table_name: str, filter_condition: str):
+## query:
     """
     Executes a query on the specified database table using the provided filter condition.
 
@@ -151,7 +151,7 @@ Python code with sqlalchemy for automating querying the database.
         Exception: If any error occurs during the query execution.
     """
     
-## check_for_duplicates(database: str, table_name: str, column_name: str):
+## check_for_duplicates:
     """
     Check for duplicates in a specific column of a table in a given database.
 
@@ -164,7 +164,7 @@ Python code with sqlalchemy for automating querying the database.
         list: A list of rows representing the duplicate values found in the column.
     """
 
-  ## delete_duplicates(dataframe: pd.DataFrame):
+  ## delete_duplicates:
     """
     Delete duplicates from the given dataframe.
 
@@ -175,7 +175,7 @@ Python code with sqlalchemy for automating querying the database.
         pd.DataFrame: The dataframe with duplicates removed.
     """
 
-## get_data_from_database(database: str = None, table_name: str = None):
+## get_data_from_database:
     """
     Retrieves data from a specified database table.
 
@@ -185,13 +185,13 @@ Python code with sqlalchemy for automating querying the database.
 
     Returns:
         list: A list of tuples containing the retrieved data.
-        str: An error message if there is an exception.
+       : An error message if there is an exception.
 
     Raises:
         ProgrammingError: If there is an exception while executing the SQL query.
     """
 
-## generate_database_url(credentials: dict, database: str):
+## generate_database_url:
     """
     Generate a database URL using the given credentials and database name.
 
@@ -205,7 +205,7 @@ Python code with sqlalchemy for automating querying the database.
         database (str): The name of the database.
 
     Returns:
-        str: The generated database URL.
+       : The generated database URL.
 
     Example:
         >>> credentials = {
@@ -218,7 +218,7 @@ Python code with sqlalchemy for automating querying the database.
         'mysql://root:password@localhost/mydatabase'
     """
 
-## insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
+## insert_dataframe:
     """
     Inserts a DataFrame into a specified database table.
 
@@ -228,11 +228,11 @@ Python code with sqlalchemy for automating querying the database.
         dataframe (pd.DataFrame): The DataFrame to be inserted.
 
     Returns:
-        str or ProgrammingError: A success message if the DataFrame is inserted successfully,
+        or ProgrammingError: A success message if the DataFrame is inserted successfully,
             or a ProgrammingError if an exception occurs.
     """
 
-## add_new_data_to_table(database: str = None, table_name: str = None, dataframe: pd.DataFrame = None):
+## add_new_data_to_table:
     """
     Adds new data to a table in a given database.
 
@@ -244,7 +244,7 @@ Python code with sqlalchemy for automating querying the database.
         None
     """
   
-## add_pk(database: str, table_name: str, constraint_name: str, column_name: str, delete_constraint: bool):
+## add_pk:
     """
     Add constraints to a table in a given database.
 
@@ -258,7 +258,7 @@ Python code with sqlalchemy for automating querying the database.
         None
     """
 
-## delete_pk(database: str, table_name: str):
+## delete_pk:
     """
     Delete constraints from a table in a given database.
 
@@ -271,7 +271,7 @@ Python code with sqlalchemy for automating querying the database.
         None
     """
     
-## search_kaggle_datasets(dataset: str = None, user: str = None):
+## search_kaggle_datasets:
     """
     Searches for a Kaggle dataset and returns the dataset information in a dictionary.
 
@@ -289,7 +289,7 @@ Python code with sqlalchemy for automating querying the database.
         search_kaggle_datasets("video game")
     """
     
-## download_kaggle_dataset(dataset: str, dataset_path: str = None):
+## download_kaggle_dataset:
     """
     Download a Kaggle dataset.
 
@@ -304,7 +304,7 @@ Python code with sqlalchemy for automating querying the database.
         None
     """
     
-## upload_dataset_to_database(database: str = None, table_name: str = None, dataset: str = None, user: str = None, dataset_path: str = None):
+## upload_dataset_to_database:
     """
     Uploads a dataset to a database table.
 
@@ -319,7 +319,7 @@ Python code with sqlalchemy for automating querying the database.
         None
     """
   
-## download_dataset_from_database(database: str, table_name: str, download_path: str):
+## download_dataset_from_database:
     """
     Downloads a dataset from a database table.
 
