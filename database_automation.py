@@ -8,6 +8,8 @@ from sqlalchemy.exc import ProgrammingError
 import sys
 from kaggle.api.kaggle_api_extended import KaggleApi
 from pprint import pprint
+import cv2 as cv
+
 
 METADATA = MetaData()
 
@@ -42,9 +44,21 @@ def create_credentials_file():
     password = input("Enter your password: ")
     host = input("Enter your host. Default value is localhost: ") or "localhost"
     port = input("Enter your port. Default value is 3306: ") or "3306"
-    connector = input("Enter your connector. List of connectors: \n[1] mysql+mysqlconnector\n[2] postgresql+psycopg2\n[3] \nDefault value is mysqlconnector: ") or "mysql+mysqlconnector"
+    connector = input("Enter your connector. List of connectors: \n[1] mysql+mysqlconnector\n[2] postgresql+psycopg2\n[3] mssql+pyodbc\n [4] sqlite\nDefault value is mysqlconnector: ") or "mysql+mysqlconnector"
+    match connector:
+        case "1":
+            connector = "mysql"
+        case "2":
+            connector = "postgresql"
+        case "3":
+            connector = "mssql+pyodbc"
+        case "4":
+            connector = "sqlite"
+        case _:
+            connector = "mysql+mysqlconnector"
+
     file_name = input("Enter your file name. Default value is .database_credentials.yaml: ") or ".database_credentials.yaml"
-    default_download_folder = input("Enter your default download folder. Default directory is the kaggle_datasets directory('~/kaggle_datasets'): ") or "~/kaggle_datasets"
+    default_download_folder = input("Enter your default download folder. Default directory is the kaggle_datasets directory('~/kaggle_datasets'): ") or os.path.expanduser("~") + "/kaggle_datasets"
 
     # Create the file
     home_directory = os.path.expanduser('~')
@@ -66,6 +80,7 @@ def create_credentials_file():
 
     with open(file_path, "r") as file:
         return yaml.safe_load(file)["credentials"]
+
 
 def create_database_function(database: str):
     """
@@ -89,6 +104,7 @@ def create_database_function(database: str):
         return {"Already Exists!": "Database Already Exists!"}
     except Exception as exception:
         return (None, exception)
+
 
 def delete_database_function(database: str):
     """
@@ -115,6 +131,7 @@ def delete_database_function(database: str):
                 return {"Doesn't Exist!": "Database doesn't Exist!"}
     except Exception as exception:
         return exception
+
 
 def create_tables(database: str, *table_names: str, column_name: str = None):
     """
@@ -154,6 +171,7 @@ def create_tables(database: str, *table_names: str, column_name: str = None):
     except Exception as e:
         return e
 
+
 def delete_tables(database: str, *table_names: str):
     """
     Deletes specified tables from a given database.
@@ -188,6 +206,7 @@ def delete_tables(database: str, *table_names: str):
 
     except Exception as exception:
         return exception
+
 
 def insert_columns(database: str, table_name: str, column_name: str, datatype: str, size: str, command: str):
     """
@@ -260,6 +279,7 @@ def delete_columns(database: str, table_name: str, column_name: str):
 
     return {}
 
+
 def modify_column(database: str, table_name: str, column_name: str, command: str):
     """
     Modifies a column in a database table.
@@ -322,6 +342,7 @@ def inspect_columns(database: str, table: str, *column: str):
     except Exception as exception:
         return exception
 
+
 def query(database: str, table_name: str, filter_condition: str):
     """
     Executes a query on the specified database table using the provided filter condition.
@@ -346,7 +367,6 @@ def query(database: str, table_name: str, filter_condition: str):
         return exception
 
 
-
 def check_for_duplicates(database: str, table_name: str, column_name: str):
     """
     Check for duplicates in a specific column of a table in a given database.
@@ -367,7 +387,6 @@ def check_for_duplicates(database: str, table_name: str, column_name: str):
         if database_exists(f"{URL}/{database}") and table_name in inspector.get_table_names():
             query = f"SELECT {column_name} FROM {table_name} GROUP BY {column_name} HAVING COUNT({column_name}) > 1"
             return connection.execute(query).fetchall()
-
 
 
 def delete_duplicates(dataframe: pd.DataFrame):
@@ -432,6 +451,7 @@ def get_data_from_database(database: str = None, table_name: str = None):
 
     except ProgrammingError as exception:
         return exception
+
 
 def generate_database_url(credentials: dict, database: str):
     """
@@ -539,7 +559,6 @@ def add_new_data_to_table(database: str = None, table_name: str = None, datafram
         sys.stdout.write(str(e) + "\n")
 
 
-
 def add_pk(database: str, table_name: str, constraint_name: str, column_name: str, delete_constraint: bool):
     """
     Add constraints to a table in a given database.
@@ -608,6 +627,7 @@ def delete_pk(database: str, table_name: str):
     except ProgrammingError as e:
         sys.stdout.write(str(e) + "\n")
 
+
 def search_kaggle_datasets(dataset: str = None, user: str = None):
     """
     Searches for a Kaggle dataset and returns the dataset information in a dictionary.
@@ -635,25 +655,27 @@ def search_kaggle_datasets(dataset: str = None, user: str = None):
     if dataset:
         if user:
             for _dataset in api.dataset_list(search=dataset, user=user):
-                dataset_dict[count] = f"{_dataset} found at https://www.kaggle.com/datasets/{_dataset}"
+                dataset_dict[count] = f"{_dataset}"
                 count+=1
         else:
             for _dataset in api.dataset_list(search=dataset):
-                dataset_dict[count] = f"{_dataset} found at https://www.kaggle.com/datasets/{_dataset}"
+                dataset_dict[count] = f"{_dataset}"
                 count+=1
     elif dataset and user:
         for _dataset in api.dataset_list(search=dataset, user=user):
-            dataset_dict[count] = f"{_dataset} found at https://www.kaggle.com/datasets/{_dataset}"
+            dataset_dict[count] = f"{_dataset}"
         return dataset_dict
     else:
         return None
     pprint(dataset_dict)
     choice = int(input("\n\nChoose the dataset number: "))
     while choice not in dataset_dict:
+        print(True)
         sys.stdout.write("Invalid choice!\n Try again!\n")
         choice = int(input("\n\nChoose the dataset number: "))
         # dataset_dict[choice] = str(dataset_dict[choice]).split("/")[-1]
     return str(dataset_dict[choice])
+
 
 def download_kaggle_dataset(dataset: str, dataset_path: str = None):
     """
@@ -664,31 +686,27 @@ def download_kaggle_dataset(dataset: str, dataset_path: str = None):
         path (str, optional): The path to save the downloaded files. Defaults to None.
 
     Returns:
-        None
-
-    Raises:
-        None
+        bool: True if the dataset is downloaded successfully, False otherwise.
     """
-    home_folder = os.path.expanduser('~')
-    download_folder = home_folder + f"/AI and Machine Learning/datasets/{str(dataset).split('/')[-1]}"
-    if not os.path.exists(home_folder + "/.kaggle") and os.path.isfile(home_folder + "/.kaggle/kaggle.json"):
+    if not os.path.exists(os.path.expanduser('~') + "/.kaggle") or not os.path.isfile(os.path.expanduser('~') + "/.kaggle/kaggle.json"):
         sys.stdout.write("kaggle.json not found!\n")
-        return None
-    if os.path.exists(home_folder + "/.kaggle") and os.path.isfile(home_folder + "/.kaggle/kaggle.json"):
-        api = KaggleApi()
-        api.authenticate()
-        sys.stdout.write(f"Authorized! Downloading {dataset}...")
-        api.dataset_download_files(dataset, path=dataset_path + f"/{str(dataset).split('/')[-1]}", unzip=True)
-        return True
-    elif not os.path.exists(dataset_path + f"/{str(dataset).split('/')[-1]}"):
-        os.makedirs(download_folder)
-        api.dataset_download_files(dataset, path=dataset_path + f"/{str(dataset).split('/')[-1]}", unzip=True)
-    elif dataset and dataset_path:
-        print("Dataset and path are not None!\n")
-        api.dataset_download_files(dataset, path=dataset_path + f"/{str(dataset).split('/')[-1]}", unzip=True)
-    else:
-        sys.stdout.write("kaggle.json not found!\n")
-        return None
+        return False
+
+    api = KaggleApi()
+    api.authenticate()
+    sys.stdout.write(f"Authorized! Downloading {dataset}...\n\n")
+
+    if dataset_path is None:
+        dataset_path = get_yaml_credentials()['default_download_folder']
+
+    dataset = search_kaggle_datasets(dataset=dataset)
+
+    if not os.path.exists(dataset_path):
+        os.makedirs(dataset_path)
+    if not os.path.exists(dataset_path + f"/{dataset}"):
+        api.dataset_download_files(dataset, path=dataset_path + f"/{dataset}", unzip=True)
+    return {200: dataset_path + f"/{dataset}"}
+
 
 def upload_dataset_to_database(database: str = None, table_name: str = None, dataset: str = None, user: str = None, dataset_path: str = None):
     """
@@ -744,7 +762,26 @@ def download_dataset_from_database(database: str, table_name: str, download_path
         sys.stdout.write(str(e) + "\n")
         return None
 
+
+def choose_model_parameters(dataset: str = None, dataset_path: str = None):
+    credentials = get_yaml_credentials()
+    dataset_path = credentials['default_download_folder']
+    # dataset = search_kaggle_datasets(dataset=dataset, user=user)
+    dataset_path = download_kaggle_dataset(dataset=dataset, dataset_path=dataset_path)
+    for file in os.listdir(dataset_path[200]):
+        print(file)
+
+
+def train_machine_learning_model(dataset: str = None, dataset_path: str = None):
+    pass
+
+
+def capture_data_from_user():
+    pass
+
+
+
 if __name__ == '__main__':
-    search_kaggle_datasets(dataset="mnist")
-    # download_dataset_from_database(database="video_games", table_name="video_game_sales", download_path="video_game_sales.csv")
-    # upload_dataset_to_database(database="video_games", table_name="video_game_sales", dataset="video game sales")
+    # print(search_kaggle_datasets(dataset="mnist"))
+    # download_kaggle_dataset(dataset="mnist")
+    choose_model_parameters(dataset="mnist")
