@@ -1,5 +1,5 @@
 # database_automation
-Python code with sqlalchemy for querying the database. In addition, it can download large datasets from Kaggle and ingest it into a MySQL database.
+Python code with sqlalchemy for querying the database. In addition, it can parse large datasets from Kaggle, download them using the Kaggle API, and ingest them into a MySQL database automatically. 
 
 
 # DOCUMENTATION
