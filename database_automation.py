@@ -8,16 +8,16 @@ from sqlalchemy.exc import ProgrammingError
 import sys
 from kaggle.api.kaggle_api_extended import KaggleApi
 from pprint import pprint
-import cv2 as cv
 
 
 METADATA = MetaData()
 
+
 def get_yaml_credentials():
     """
-    Read the TOML credentials file and return its contents.
+    Read the YAML credentials file and return its contents.
 
-    :return: A dictionary containing the contents of the TOML file.
+    :return: A dictionary containing the contents of the YAML file.
     """
     home_directory = os.path.expanduser('~')
     if not os.path.exists(rf"{home_directory}/.database_credentials.yaml") or os.path.getsize(rf"{home_directory}/.database_credentials.yaml") == 0:
