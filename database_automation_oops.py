@@ -18,6 +18,16 @@ from cryptography.fernet import Fernet
 class DataBaseHandler():
     def __init__(self, username: str = None):
         self.METADATA = MetaData()
+        self.sqlalchemy_type_map = {
+            "VARCHAR": lambda size: String(size),
+            "CHAR": lambda size: CHAR(size),
+            "INT": lambda: Integer(),
+            "FLOAT": lambda: Float(),
+            "TEXT": lambda: Text(),
+            "DATE": lambda: Date(),
+            "DATETIME": lambda: DateTime(),
+            "BOOLEAN": lambda: Boolean()
+        }
 
         self.HOME = os.path.expanduser('~')
         self.USERNAME = username.lower().replace(" ", "_") or input("Enter your username: ").replace(" ", "_").lower()
@@ -287,42 +297,77 @@ class DataBaseHandler():
             return exception
 
 
-    def create_tables(self, database: str, *table_names: str, column_name: str = None):
-        """
-        Creates tables in a specified database.
+    def parse_column_definition(self, col_name, raw_def):
+        """Parses a single column's raw SQL-style string and returns a SQLAlchemy Column object."""
+        # Match SQL type like VARCHAR(50), INT, etc.
+        type_match = re.search(r'(\w+)(\((\d+)\))?', raw_def)
+        base_type = type_match.group(1).upper()
+        size = type_match.group(3)
 
-        Parameters:
-            database (str): The name of the database to create tables in.
-            *table_names (str): Variable length argument list of table names to create.
+        if base_type not in self.sqlalchemy_type_map:
+            raise ValueError(f"Unsupported type: {base_type}")
+
+        col_type = (
+            self.sqlalchemy_type_map[base_type](int(size)) if size else self.sqlalchemy_type_map[base_type]()
+        )
+
+        kwargs = {}
+
+        if "PRIMARY KEY" in raw_def.upper():
+            kwargs["primary_key"] = True
+        if "NOT NULL" in raw_def.upper():
+            kwargs["nullable"] = False
+
+        default_match = re.search(r"DEFAULT\s+('[^']+'|\d+|CURRENT_TIMESTAMP)", raw_def, re.IGNORECASE)
+        if default_match:
+            default_val = default_match.group(1)
+            if default_val.upper() == "CURRENT_TIMESTAMP":
+                kwargs["server_default"] = text("CURRENT_TIMESTAMP")
+            else:
+                kwargs["server_default"] = text(default_val)
+
+        return Column(col_name, col_type, **kwargs)
+
+
+    def create_tables(self, engine, table_dict):
+        """
+        Create tables based on the provided dictionary of table names and their corresponding column definitions.
+
+        Args:
+            engine (_type_): _database engine object_
+            table_dict (_type_): _dictionary of table names and their corresponding column definitions_
 
         Returns:
-            str or dict: If the tables are successfully created, returns 'Table already exists!' if the table already exists in the database. If the database does not exist, returns a dictionary with the key 'Error!' and the value 'Database does not exist!'. If an exception occurs during the table creation process, returns the exception object.
+            None
+
+        Example:
+            >>> from sqlalchemy import create_engine, MetaData, inspect
+            >>> engine = create_engine("sqlite:///:memory:")
+            >>> table_dict = {
+                    "users": [
+                        ("username", "VARCHAR(50) NOT NULL"),
+                        ("age", "INT"),
+                        ("dob", "DATE NOT NULL"),
+                        ("current_date", "DATETIME DEFAULT CURRENT_TIMESTAMP")
+                    ]
+                }
         """
-        try:
+        metadata = MetaData()
+        inspector = inspect(engine)
 
-            USER = self.CONFIG.get(self.USERNAME).get('user')
-            PASSWORD = self.CONFIG["password"]
-            HOSTNAME = self.CONFIG.get('hotname')
-            CONNECTOR = self.CONFIG.get(self.USERNAME).get('connector')
-            URL = f"{CONNECTOR}://{USER}:{PASSWORD}@{HOSTNAME}/{database}"
-            engine = create_engine(URL, echo=True)
-            inspector = inspect(engine)
+        for table_name, columns in table_dict.items():
+            if inspector.has_table(table_name):
+                print(f"✅ Table '{table_name}' already exists. Skipping.")
+                continue
 
-            if database_exists(URL):
-                for table_name in table_names:
-                    if table_name not in inspector.get_table_names():
-                        if column_name:
-                            table = Table(table_name, self.METADATA, Column('Id', Integer, primary_key=True), Column(column_name, Integer))
-                            table.create(bind=engine)
-                        else:
-                            table = Table(table_name, self.METADATA, Column('Id', Integer, primary_key=True))
-                            table.create(bind=engine)
-                    else:
-                        return 'Table already exists!'
-            else:
-                return {'Error!': 'Database does not exist!'}
-        except Exception as e:
-            return e
+            col_objects = []
+            for col_name, raw_def in columns:
+                col_objects.append(self.parse_column_definition(col_name, raw_def))
+
+            Table(table_name, metadata, *col_objects)
+            print(f"🛠️  Creating table: {table_name} {Table}")
+
+        metadata.create_all(engine)
 
 
     def delete_tables(self, database: str, *table_names: str):
@@ -361,41 +406,66 @@ class DataBaseHandler():
             return exception
 
 
-    def insert_columns(self, database: str, table_name: str, column_name: str, datatype: str, size: str, command: str):
+    def insert_columns(self, database_url: str, schema_changes: dict):
         """
-        Insert columns into a database table.
+        Inserts columns into one or more tables if they do not already exist.
 
         Args:
-            database (str): The name of the database.
-            table_name (str): The name of the table to insert columns into.
-            column_name (str): The name of the column to be inserted.
-            datatype (str): The datatype of the column.
-            size (str): The size of the column.
-            command (str): The command to be executed after inserting the column.
+            database_url (str): Full SQLAlchemy database URL.
+            schema_changes (dict): Dictionary where keys are table names and values are lists of tuples.
+                                Each tuple contains (column_name, column_definition) as strings.
+
+                                Example:
+                                {
+                                    "users": [("username", "VARCHAR(50)"), ("age", "INT")],
+                                    "orders": [("order_date", "DATETIME DEFAULT CURRENT_TIMESTAMP")]
+                                }
 
         Returns:
-            str: A success message if the columns are inserted successfully, otherwise an exception message.
-
-        Raises:
-            Exception: If an error occurs during the insertion process.
+            dict: Summary of actions taken for each table.
         """
+        results = {}
+        engine = create_engine(database_url)
+        inspector = inspect(engine)
         try:
+            if not database_exists(database_url):
+                logging.exception("Database does not exist")
+                return {"error": "Database does not exist."}
 
-            USER = self.CONFIG.get(self.USERNAME).get('user')
-            PASSWORD = self.CONFIG["PASSWORD"]
-            HOSTNAME = self.CONFIG.get('hotname')
-            connector = self.CONFIG.get(self.USERNAME).get('connector')
-            URL = f"{connector}://{USER}:{PASSWORD}@{HOSTNAME}/{database}"
+            with engine.connect() as connection:
+                for table, columns in schema_changes.items():
+                    if table not in inspector.get_table_names():
+                        results[table] = "Table does not exist."
+                        continue
 
-            engine = create_engine(URL)
-            inspector = inspect(engine)
+                    existing_columns = [col['name'] for col in inspector.get_columns(table)]
+                    alter_clauses = []
 
-            if database_exists(URL) and table_name in inspector.get_table_names():
-                command = text(f'ALTER TABLE {table_name} ADD {column_name} {datatype}({size}) {command}')
-                engine.execute(command)
-                return 'Successfully inserted columns!'
-        except Exception as exception:
-            return exception
+                    for column_name, column_def in columns:
+                        if column_name not in existing_columns:
+                            alter_clauses.append(f"ADD COLUMN {column_name} {column_def}")
+
+                    if alter_clauses:
+                        try:
+                            alter_sql = f"ALTER TABLE {table} " + ", ".join(alter_clauses) + ";"
+                            connection.execute(text(alter_sql))
+                            results[table] = f"Inserted columns: {[col[0] for col in columns if col[0] not in existing_columns]}"
+                            logging.info(f"Inserted columns for {table}: {[col[0] for col in columns if col[0] not in existing_columns]}")
+                        except Exception:
+                            logging.exception("An error occurred while inserting columns")
+                        finally:
+                            connection.close()
+                    else:
+                        results[table] = "All columns already exist."
+
+        except Exception as e:
+            logging.exception("An error occurred while inserting columns.")
+            return {"error": str(e)}
+
+        finally:
+            engine.dispose()
+
+        return results
 
 
     def delete_columns(self, database: str, table_name: str, column_name: str):
@@ -829,76 +899,87 @@ class DataBaseHandler():
             sys.stdout.write(str(e) + "\n")
             return None
 
-
+class Sample():
+    def __init__(self):
 # Map simplified SQL types to SQLAlchemy types
-sqlalchemy_type_map = {
-    "VARCHAR": lambda size: String(size),
-    "CHAR": lambda size: CHAR(size),
-    "INT": lambda: Integer(),
-    "FLOAT": lambda: Float(),
-    "TEXT": lambda: Text(),
-    "DATE": lambda: Date(),
-    "DATETIME": lambda: DateTime(),
-    "BOOLEAN": lambda: Boolean()
+        self.sqlalchemy_type_map = {
+            "VARCHAR": lambda size: String(size),
+            "CHAR": lambda size: CHAR(size),
+            "INT": lambda: Integer(),
+            "FLOAT": lambda: Float(),
+            "TEXT": lambda: Text(),
+            "DATE": lambda: Date(),
+            "DATETIME": lambda: DateTime(),
+            "BOOLEAN": lambda: Boolean()
+        }
+
+    def parse_column_definition(self, col_name, raw_def):
+        """Parses a single column's raw SQL-style string and returns a SQLAlchemy Column object."""
+        # Match SQL type like VARCHAR(50), INT, etc.
+        type_match = re.search(r'(\w+)(\((\d+)\))?', raw_def)
+        base_type = type_match.group(1).upper()
+        size = type_match.group(3)
+
+        if base_type not in self.sqlalchemy_type_map:
+            raise ValueError(f"Unsupported type: {base_type}")
+
+        col_type = (
+            self.sqlalchemy_type_map[base_type](int(size)) if size else self.sqlalchemy_type_map[base_type]()
+        )
+
+        kwargs = {}
+
+        if "PRIMARY KEY" in raw_def.upper():
+            kwargs["primary_key"] = True
+        if "NOT NULL" in raw_def.upper():
+            kwargs["nullable"] = False
+
+        default_match = re.search(r"DEFAULT\s+('[^']+'|\d+|CURRENT_TIMESTAMP)", raw_def, re.IGNORECASE)
+        if default_match:
+            default_val = default_match.group(1)
+            if default_val.upper() == "CURRENT_TIMESTAMP":
+                kwargs["server_default"] = text("CURRENT_TIMESTAMP")
+            else:
+                kwargs["server_default"] = text(default_val)
+
+        return Column(col_name, col_type, **kwargs)
+
+    def create_tables(self, engine, table_dict):
+        metadata = MetaData()
+        inspector = inspect(engine)
+
+        for table_name, columns in table_dict.items():
+            if inspector.has_table(table_name):
+                print(f"✅ Table '{table_name}' already exists. Skipping.")
+                continue
+
+            col_objects = []
+            for col_name, raw_def in columns:
+                col_objects.append(self.parse_column_definition(col_name, raw_def))
+
+            Table(table_name, metadata, *col_objects)
+            print(f"🛠️  Creating table: {table_name} {Table}")
+
+        metadata.create_all(engine)
+
+
+schema = {
+    "users": [
+        ("fitbit_client_id", "VARCHAR(10) NOT NULL DEFAULT 0 PRIMARY KEY"),
+        ("username", "VARCHAR(50) NOT NULL"),
+        ("age", "INT"),
+        ("level", "INT NOT NULL DEFAULT 1"),
+        ("current_xp", "INT NOT NULL DEFAULT 0"),
+        ("total_xp", "INT NOT NULL DEFAULT 0"),
+        ("rank", "CHAR(1) NOT NULL DEFAULT 'E'"),
+        ("dob", "DATE NOT NULL"),
+        ("days_missed", "INT NOT NULL DEFAULT 0"),
+        ("spawn_date", "DATETIME DEFAULT CURRENT_TIMESTAMP")
+    ]
 }
 
-def parse_column_definition(col_name, raw_def):
-    """Parses a single column's raw SQL-style string and returns a SQLAlchemy Column object."""
-    # Match SQL type like VARCHAR(50), INT, etc.
-    type_match = re.search(r'(\w+)(\((\d+)\))?', raw_def)
-    base_type = type_match.group(1).upper()
-    size = type_match.group(3)
-
-    if base_type not in sqlalchemy_type_map:
-        raise ValueError(f"Unsupported type: {base_type}")
-
-    col_type = (
-        sqlalchemy_type_map[base_type](int(size)) if size else sqlalchemy_type_map[base_type]()
-    )
-
-    kwargs = {}
-
-    # Primary Key
-    if "PRIMARY KEY" in raw_def.upper():
-        kwargs["primary_key"] = True
-
-    # Nullable
-    if "NOT NULL" in raw_def.upper():
-        kwargs["nullable"] = False
-
-    # Default
-    default_match = re.search(r"DEFAULT\s+('[^']+'|\d+|CURRENT_TIMESTAMP)", raw_def, re.IGNORECASE)
-    if default_match:
-        default_val = default_match.group(1)
-        if default_val.upper() == "CURRENT_TIMESTAMP":
-            kwargs["default"] = func.now()
-        elif default_val.startswith("'") and default_val.endswith("'"):
-            kwargs["default"] = default_val.strip("'")
-        else:
-            kwargs["default"] = int(default_val)
-
-    return Column(col_name, col_type, **kwargs)
-
-def create_tables_from_dict(engine, table_dict):
-    metadata = MetaData()
-    inspector = inspect(engine)
-
-    for table_name, columns in table_dict.items():
-        if inspector.has_table(table_name):
-            print(f"✅ Table '{table_name}' already exists. Skipping.")
-            continue
-
-        col_objects = []
-        for col_name, raw_def in columns:
-            col_objects.append(parse_column_definition(col_name, raw_def))
-
-        Table(table_name, metadata, *col_objects)
-        print(f"🛠️  Creating table: {table_name}")
-
-    metadata.create_all(engine)
-
-
-
-
+s = Sample()
+engine = create_engine("mysql+mysqlconnector://root:A1B2C3D4E5@localhost/gol_test")
+s.create_tables_from_dict(engine, schema)
 # TODO: Fix encrypt and decrypt function
 # TODO: Add AWS Support. Think of GCP and Azure
