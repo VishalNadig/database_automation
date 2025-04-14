@@ -8,11 +8,11 @@ dependencies = [
     "pandas<3.0.0,>=2.2.1",
     "SQLAlchemy==1.4.51",
     "SQLAlchemy-Utils<1.0.0,>=0.41.1",
-    "kaggle>=1.6.6,<2.0.0",
     "scikit-learn<2.0.0.0,>=1.4.1.post1",
     "apache-airflow<3.0.0,>=2.8.1",
+    "boto3>=1.37.33",
 ]
 name = "ml-pipeline-exp"
 version = "0.1.0"
-description = "Experimental ML Pipeline to automate machine learning and return a trained machine learning model"
+description = "Database Automation using SQLAlchemy and Python"
 readme = "README.md"

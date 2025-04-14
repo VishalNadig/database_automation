@@ -6,7 +6,8 @@ import boto3
 import argparse
 import sys
 from configparser import ConfigParser
-from sqlalchemy import create_engine, Table, Column, Integer, MetaData, inspect, text
+from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, inspect, text
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy_utils import create_database, database_exists, drop_database
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.exc import ProgrammingError
@@ -826,6 +827,27 @@ class DataBaseHandler():
         except Exception as e:
             sys.stdout.write(str(e) + "\n")
             return None
+
+
+# Step 1: Define the database connection URL (use SQLite for simplicity)
+DATABASE_URL = "sqlite:///example.db"  # This will create a local SQLite database
+
+# Step 2: Create an engine
+engine = create_engine(DATABASE_URL, echo=True)
+
+# Step 3: Create a base class for table definitions
+Base = declarative_base()
+
+# Step 4: Define your table as a Python class
+class User(Base):
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    email = Column(String)
+
+# Step 5: Create the table in the database
+Base.metadata.create_all(engine)
 
 
 if __name__ == "__main__":
