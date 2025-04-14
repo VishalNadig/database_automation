@@ -5,10 +5,11 @@ import logging
 import boto3
 import argparse
 import sys
+import re
 from configparser import ConfigParser
-from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, inspect, text
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, Float, Text, Date, DateTime, CHAR, Boolean, inspect, text
 from sqlalchemy_utils import create_database, database_exists, drop_database
+from sqlalchemy.sql import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.exc import ProgrammingError
 from cryptography.fernet import Fernet
@@ -829,29 +830,72 @@ class DataBaseHandler():
             return None
 
 
-# Step 1: Define the database connection URL (use SQLite for simplicity)
-DATABASE_URL = "sqlite:///example.db"  # This will create a local SQLite database
+# Map simplified SQL types to SQLAlchemy types
+sqlalchemy_type_map = {
+    "VARCHAR": lambda size: String(size),
+    "CHAR": lambda size: CHAR(size),
+    "INT": lambda: Integer(),
+    "FLOAT": lambda: Float(),
+    "TEXT": lambda: Text(),
+    "DATE": lambda: Date(),
+    "DATETIME": lambda: DateTime(),
+    "BOOLEAN": lambda: Boolean()
+}
 
-# Step 2: Create an engine
-engine = create_engine(DATABASE_URL, echo=True)
+def parse_column_definition(col_name, raw_def):
+    """Parses a single column's raw SQL-style string and returns a SQLAlchemy Column object."""
+    # Match SQL type like VARCHAR(50), INT, etc.
+    type_match = re.search(r'(\w+)(\((\d+)\))?', raw_def)
+    base_type = type_match.group(1).upper()
+    size = type_match.group(3)
 
-# Step 3: Create a base class for table definitions
-Base = declarative_base()
+    if base_type not in sqlalchemy_type_map:
+        raise ValueError(f"Unsupported type: {base_type}")
 
-# Step 4: Define your table as a Python class
-class User(Base):
-    __tablename__ = 'users'
+    col_type = (
+        sqlalchemy_type_map[base_type](int(size)) if size else sqlalchemy_type_map[base_type]()
+    )
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    email = Column(String)
+    kwargs = {}
 
-# Step 5: Create the table in the database
-Base.metadata.create_all(engine)
+    # Primary Key
+    if "PRIMARY KEY" in raw_def.upper():
+        kwargs["primary_key"] = True
 
+    # Nullable
+    if "NOT NULL" in raw_def.upper():
+        kwargs["nullable"] = False
 
-if __name__ == "__main__":
-    pass
+    # Default
+    default_match = re.search(r"DEFAULT\s+('[^']+'|\d+|CURRENT_TIMESTAMP)", raw_def, re.IGNORECASE)
+    if default_match:
+        default_val = default_match.group(1)
+        if default_val.upper() == "CURRENT_TIMESTAMP":
+            kwargs["default"] = func.now()
+        elif default_val.startswith("'") and default_val.endswith("'"):
+            kwargs["default"] = default_val.strip("'")
+        else:
+            kwargs["default"] = int(default_val)
+
+    return Column(col_name, col_type, **kwargs)
+
+def create_tables_from_dict(engine, table_dict):
+    metadata = MetaData()
+    inspector = inspect(engine)
+
+    for table_name, columns in table_dict.items():
+        if inspector.has_table(table_name):
+            print(f"✅ Table '{table_name}' already exists. Skipping.")
+            continue
+
+        col_objects = []
+        for col_name, raw_def in columns:
+            col_objects.append(parse_column_definition(col_name, raw_def))
+
+        Table(table_name, metadata, *col_objects)
+        print(f"🛠️  Creating table: {table_name}")
+
+    metadata.create_all(engine)
 
 
 
