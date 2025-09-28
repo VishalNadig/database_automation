@@ -1,11 +1,12 @@
-from sqlalchemy import create_engine, Table, Column, Integer, MetaData, inspect, text
-from sqlalchemy_utils import create_database, database_exists, drop_database
 import pandas as pd
 import yaml
 import os
+import sys
+from sqlalchemy import create_engine, Table, Column, Integer, MetaData, inspect, text
+from sqlalchemy_utils import create_database, database_exists, drop_database
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.exc import ProgrammingError
-import sys
+from typing  import List, Dict,Optional
 from kaggle.api.kaggle_api_extended import KaggleApi
 from pprint import pprint
 
@@ -13,7 +14,7 @@ from pprint import pprint
 METADATA = MetaData()
 
 
-def get_yaml_credentials():
+def get_yaml_credentials() -> dict:
     """
     Read the YAML credentials file and return its contents.
 
@@ -28,7 +29,7 @@ def get_yaml_credentials():
     return yaml_file.get("credentials")
 
 
-def create_credentials_file():
+def create_credentials_file() -> dict:
     """
     Creates a credentials file with the user's input for username, password, and host.
 
@@ -78,11 +79,10 @@ def create_credentials_file():
         sys.stdout.write(f"Creating credentials file in {file_path}...")
         yaml.safe_dump(data, file)
 
-    with open(file_path, "r") as file:
-        return yaml.safe_load(file)["credentials"]
+    get_yaml_credentials()
 
 
-def create_database_function(database: str):
+def create_database_function(database: str) -> dict:
     """
     Create a database function.
 
@@ -106,7 +106,7 @@ def create_database_function(database: str):
         return (None, exception)
 
 
-def delete_database_function(database: str):
+def delete_database_function(database: str) -> dict:
     """
     Deletes a database with the given name.
 
@@ -133,7 +133,7 @@ def delete_database_function(database: str):
         return exception
 
 
-def create_tables(database: str, *table_names: str, column_name: str = None):
+def create_tables(database: str, *table_names: str, column_name: str = None) -> dict:
     """
     Creates tables in a specified database.
 
@@ -172,7 +172,7 @@ def create_tables(database: str, *table_names: str, column_name: str = None):
         return e
 
 
-def delete_tables(database: str, *table_names: str):
+def delete_tables(database: str, *table_names: str) -> str:
     """
     Deletes specified tables from a given database.
 
@@ -208,7 +208,7 @@ def delete_tables(database: str, *table_names: str):
         return exception
 
 
-def insert_columns(database: str, table_name: str, column_name: str, datatype: str, size: str, command: str):
+def insert_columns(database: str, table_name: str, column_name: str, datatype: str, size: str, command: str) -> str:
     """
     Insert columns into a database table.
 
@@ -245,7 +245,7 @@ def insert_columns(database: str, table_name: str, column_name: str, datatype: s
         return exception
 
 
-def delete_columns(database: str, table_name: str, column_name: str):
+def delete_columns(database: str, table_name: str, column_name: str) -> dict:
     """
     Deletes a column from a specified table in a given database.
 
@@ -280,7 +280,7 @@ def delete_columns(database: str, table_name: str, column_name: str):
     return {}
 
 
-def modify_column(database: str, table_name: str, column_name: str, command: str):
+def modify_column(database: str, table_name: str, column_name: str, command: str) -> str:
     """
     Modifies a column in a database table.
 
@@ -311,7 +311,7 @@ def modify_column(database: str, table_name: str, column_name: str, command: str
         return str(exception)
 
 
-def inspect_columns(database: str, table: str, *column: str):
+def inspect_columns(database: str, table: str, *column: str) -> str:
     """
     Get information about columns in a database table.
 
@@ -343,7 +343,7 @@ def inspect_columns(database: str, table: str, *column: str):
         return exception
 
 
-def query(database: str, table_name: str, filter_condition: str):
+def query(database: str, table_name: str, filter_condition: str) -> list:
     """
     Executes a query on the specified database table using the provided filter condition.
 
@@ -367,7 +367,7 @@ def query(database: str, table_name: str, filter_condition: str):
         return exception
 
 
-def check_for_duplicates(database: str, table_name: str, column_name: str):
+def check_for_duplicates(database: str, table_name: str, column_name: str) -> str:
     """
     Check for duplicates in a specific column of a table in a given database.
 
@@ -389,7 +389,7 @@ def check_for_duplicates(database: str, table_name: str, column_name: str):
             return connection.execute(query).fetchall()
 
 
-def delete_duplicates(dataframe: pd.DataFrame):
+def delete_duplicates(dataframe: pd.DataFrame) -> pd.DataFrame:
     """
     Delete duplicates from the given dataframe.
 
@@ -416,7 +416,7 @@ def delete_duplicates(dataframe: pd.DataFrame):
         return dataframe
 
 
-def get_data_from_database(database: str = None, table_name: str = None):
+def get_data_from_database(database: str = None, table_name: str = None) -> str:
     """
     Retrieves data from a specified database table.
 
@@ -453,7 +453,7 @@ def get_data_from_database(database: str = None, table_name: str = None):
         return exception
 
 
-def generate_database_url(credentials: dict, database: str):
+def generate_database_url(credentials: dict, database: str) -> str:
     """
     Generate a database URL using the given credentials and database name.
 
@@ -482,7 +482,7 @@ def generate_database_url(credentials: dict, database: str):
     return f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}/{database}"
 
 
-def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
+def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame) -> dict:
     """
     Inserts a DataFrame into a specified database table.
 
@@ -520,7 +520,7 @@ def insert_dataframe(database: str, table_name: str, dataframe: pd.DataFrame):
         return e
 
 
-def add_new_data_to_table(database: str = None, table_name: str = None, dataframe: pd.DataFrame = None):
+def add_new_data_to_table(database: str = None, table_name: str = None, dataframe: pd.DataFrame = None) -> dict:
     """
     Adds new data to a table in a given database.
 
@@ -559,7 +559,7 @@ def add_new_data_to_table(database: str = None, table_name: str = None, datafram
         sys.stdout.write(str(e) + "\n")
 
 
-def add_pk(database: str, table_name: str, constraint_name: str, column_name: str, delete_constraint: bool):
+def add_pk(database: str, table_name: str, constraint_name: str, column_name: str, delete_constraint: bool) -> None:
     """
     Add constraints to a table in a given database.
 
@@ -597,7 +597,7 @@ def add_pk(database: str, table_name: str, constraint_name: str, column_name: st
         sys.stdout.write(str(e))
 
 
-def delete_pk(database: str, table_name: str):
+def delete_pk(database: str, table_name: str) -> None:
     """
     Delete constraints from a table in a given database.
 
@@ -628,56 +628,54 @@ def delete_pk(database: str, table_name: str):
         sys.stdout.write(str(e) + "\n")
 
 
-def search_kaggle_datasets(dataset: str = None, user: str = None):
+def ensure_api() -> KaggleApi:
+    """Authenticate and return a KaggleApi instance."""
+    home = os.path.expanduser("~")
+    cred_dir = os.path.join(home, ".kaggle")
+    cred_file = os.path.join(cred_dir, "kaggle.json")
+    if not (os.path.isdir(cred_dir) and os.path.isfile(cred_file)):
+        raise FileNotFoundError(
+            "kaggle.json not found. Create and place it in ~/.kaggle/kaggle.json"
+        )
+    api = KaggleApi()
+    api.authenticate()
+    return api
+
+
+def list_dataset_files(dataset: str) -> List:
+    api = ensure_api()
+    files = api.dataset_list_files(dataset=dataset)
+    return files.dataset_files
+
+
+def search_kaggle_datasets(dataset: str, user: Optional[str] = None, max_results: int = 50) -> List[Dict]:
     """
-    Searches for a Kaggle dataset and returns the dataset information in a dictionary.
+    Search Kaggle datasets.
 
-    Parameters:
-        dataset (str): The name of the dataset to search for.
-        user (str): The name of the user to search for.
-
-    Returns:
-        dict: A dictionary containing the dataset information. The keys are the indices of the datasets, and the values are the dataset objects.
-
-    Raises:
-        None
-
-    Example:
-        search_kaggle_datasets("video game")
+    Returns a list of lightweight dicts:
+      {"ref": "owner/dataset", "title": "...", "size": ..., "downloadCount": ..., "lastUpdated": "..."}
     """
-    count=1
-    home_folder = os.path.expanduser('~')
-    if os.path.exists(home_folder + "/.kaggle") and os.path.isfile(home_folder + "/.kaggle/kaggle.json"):
-        api = KaggleApi()
-        api.authenticate()
-        dataset_dict = {}
-
-    if dataset:
-        if user:
-            for _dataset in api.dataset_list(search=dataset, user=user):
-                dataset_dict[count] = f"{_dataset}"
-                count+=1
-        else:
-            for _dataset in api.dataset_list(search=dataset):
-                dataset_dict[count] = f"{_dataset}"
-                count+=1
-    elif dataset and user:
-        for _dataset in api.dataset_list(search=dataset, user=user):
-            dataset_dict[count] = f"{_dataset}"
-        return dataset_dict
-    else:
-        return None
-    pprint(dataset_dict)
-    choice = int(input("\n\nChoose the dataset number: "))
-    while choice not in dataset_dict:
-        print(True)
-        sys.stdout.write("Invalid choice!\n Try again!\n")
-        choice = int(input("\n\nChoose the dataset number: "))
-        # dataset_dict[choice] = str(dataset_dict[choice]).split("/")[-1]
-    return str(dataset_dict[choice])
+    api = ensure_api()
+    results = api.dataset_list(search=dataset, user=user, max_size=None)
+    out = {}
+    count = 1
+    for d in results[:max_results]:
+        out[count] = {
+            "ref": d.ref,
+            "title": d.title,
+            "size": getattr(d, "size", None),
+            "downloadCount": d.download_count,
+            "lastUpdated": d.last_updated,
+            "ownerName": d.creator_name,
+            "subtitle": d.subtitle,
+            "url": d.url,
+            "files": [file.name for file in list_dataset_files(dataset=dataset)]
+        }
+        count += 1
+    return out
 
 
-def download_kaggle_dataset(dataset: str, dataset_path: str = None):
+def download_kaggle_dataset(dataset: str, dataset_path: str = None) -> dict:
     """
     Download a Kaggle dataset.
 
@@ -692,23 +690,24 @@ def download_kaggle_dataset(dataset: str, dataset_path: str = None):
         sys.stdout.write("kaggle.json not found!\n")
         return False
 
-    api = KaggleApi()
-    api.authenticate()
+    api = ensure_api()
     sys.stdout.write(f"Authorized! Downloading {dataset}...\n\n")
 
     if dataset_path is None:
         dataset_path = get_yaml_credentials()['default_download_folder']
 
     dataset = search_kaggle_datasets(dataset=dataset)
-
+    pprint(dataset)
+    choice: int = int(input("Enter the dataset index to download: "))
+    dataset = dataset[choice].get('ref')
     if not os.path.exists(dataset_path):
         os.makedirs(dataset_path)
     if not os.path.exists(dataset_path + f"/{dataset}"):
         api.dataset_download_files(dataset, path=dataset_path + f"/{dataset}", unzip=True)
-    return {200: dataset_path + f"/{dataset}"}
+    return {200: f"Dataset {dataset} downloaded to {dataset_path + f'/{dataset}'}"}
 
 
-def upload_dataset_to_database(database: str = None, table_name: str = None, dataset: str = None, user: str = None, dataset_path: str = None):
+def upload_dataset_to_database(database: str = None, table_name: str = None, dataset: str = None, user: str = None, dataset_path: str = None) -> dict:
     """
     Uploads a dataset to a database table.
 
@@ -731,7 +730,7 @@ def upload_dataset_to_database(database: str = None, table_name: str = None, dat
         insert_dataframe(database=database, table_name=table_name, dataframe=dataset_path + f"/{str(dataset).split('/')[-1]}/" + file)
 
 
-def download_dataset_from_database(database: str, table_name: str, download_path: str):
+def download_dataset_from_database(database: str, table_name: str, download_path: str) -> pd.DataFrame:
     """
     Downloads a dataset from a database table.
 
@@ -780,8 +779,5 @@ def capture_data_from_user():
     pass
 
 
-
 if __name__ == '__main__':
-    # print(search_kaggle_datasets(dataset="mnist"))
-    # download_kaggle_dataset(dataset="mnist")
-    choose_model_parameters(dataset="mnist")
+    pprint(search_kaggle_datasets(dataset='manthansolanki/leetcode-questions'))
