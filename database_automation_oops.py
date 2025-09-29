@@ -9,11 +9,12 @@ import re
 from configparser import ConfigParser
 from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, Float, Text, Date, DateTime, CHAR, Boolean, inspect, text
 from sqlalchemy_utils import create_database, database_exists, drop_database
-from sqlalchemy.sql import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.exc import ProgrammingError
 from cryptography.fernet import Fernet
-
+from kaggle.api.kaggle_api_extended import KaggleApi
+from pprint import pprint
+from typing import Optional, List, Dict
 
 class DataBaseHandler():
     def __init__(self, username: str = None):
@@ -900,5 +901,185 @@ class DataBaseHandler():
             return None
 
 
+class KaggleHandler():
+    """Class for handling all Kaggle related functions and data."""
+    def __init__(self):
+        pass
+
+
+    def ensure_api(self) -> None:
+        """Authenticate and return a KaggleApi instance.
+
+        Args:
+            None.
+
+        Returns:
+            None
+        """
+        home = os.path.expanduser("~")
+        cred_dir = os.path.join(home, ".kaggle")
+        cred_file = os.path.join(cred_dir, "kaggle.json")
+        if not (os.path.isdir(cred_dir) and os.path.isfile(cred_file)):
+            raise FileNotFoundError(
+                "kaggle.json not found. Create and place it in ~/.kaggle/kaggle.json"
+            )
+        api = KaggleApi()
+        api.authenticate()
+        return api
+
+
+    def list_dataset_files(self, dataset: str) -> List:
+        """List files in a Kaggle dataset.
+
+        Args:
+            dataset (str): The name of the Kaggle dataset.
+
+        Returns:
+            List: A list of files in the dataset.
+        """
+        api = self.ensure_api()
+        files = api.dataset_list_files(dataset=dataset)
+        return files.dataset_files
+
+
+    def search_kaggle_datasets(self, dataset: str, user: Optional[str] = None, max_results: int = 50, list_files: bool = False) -> List[Dict]:
+        """
+        Search Kaggle datasets.
+
+        Returns a list of lightweight dicts:
+        {"ref": "owner/dataset", "title": "...", "size": ..., "downloadCount": ..., "lastUpdated": "..."}
+        """
+        api = self.ensure_api()
+        results = api.dataset_list(search=dataset, user=user, max_size=None)
+        out = {}
+        count = 1
+        for d in results[:max_results]:
+            if list_files:
+                out[count] = {
+                    "ref": d.ref,
+                    "title": d.title,
+                    "size": getattr(d, "size", None),
+                    "downloadCount": d.download_count,
+                    "lastUpdated": d.last_updated,
+                    "ownerName": d.creator_name,
+                    "subtitle": d.subtitle,
+                    "url": d.url,
+                    "files": [file.name for file in self.list_dataset_files(dataset=d.url.split("/datasets/")[-1])]
+                }
+                count += 1
+            else:
+                out[count] = {
+                    "ref": d.ref,
+                    "title": d.title,
+                    "size": getattr(d, "size", None),
+                    "downloadCount": d.download_count,
+                    "lastUpdated": d.last_updated,
+                    "ownerName": d.creator_name,
+                    "subtitle": d.subtitle,
+                    "url": d.url,
+                }
+                count += 1
+        return out
+
+
+    def search_kaggle_datasets_with_keyword(self, keyword: str, max_results: int = 100, max_size: int = None) -> List[Dict]:
+        """Search Kaggle datasets with a specific keyword.
+
+        Args:
+            keyword (str): The keyword to search for.
+            max_results (int, optional): The max number of results to retrieve. Defaults to 100.
+            max_size (int, optional): Max size of the dataset to return. Defaults to None.
+
+        Returns:
+            List[Dict]: The list of datasets matching the keyword.
+        """
+        api = self.ensure_api()
+
+        results = api.dataset_list(search=keyword, max_size = max_size)
+
+        datasets = []
+        for d in results[:max_results]:
+            datasets.append({
+                "ref": d.ref,
+                "title": d.title,
+                "size": getattr(d, "size", None),
+                "downloadCount": d.download_count,
+                "lastUpdated": d.last_updated,
+                "ownerName": d.creator_name,
+                "subtitle": d.subtitle,
+                "url": d.url,
+            })
+        return datasets
+
+
+    def download_kaggle_dataset(self, dataset: str, dataset_path: str = None) -> dict:
+        """
+        Download a Kaggle dataset.
+
+        Args:
+            dataset (str): The name of the Kaggle dataset.
+            path (str, optional): The path to save the downloaded files. Defaults to None.
+
+        Returns:
+            bool: True if the dataset is downloaded successfully, False otherwise.
+        """
+        if not os.path.exists(os.path.expanduser('~') + "/.kaggle") or not os.path.isfile(os.path.expanduser('~') + "/.kaggle/kaggle.json"):
+            sys.stdout.write("kaggle.json not found!\n")
+            return False
+
+        api = self.ensure_api()
+        sys.stdout.write(f"Authorized! Downloading {dataset}...\n\n")
+
+        if dataset_path is None:
+            dataset_path = self.get_credentials()['default_download_folder']
+
+        dataset = self.search_kaggle_datasets(dataset=dataset)
+        pprint(dataset)
+        choice: int = int(input("Enter the dataset index to download: "))
+        dataset = dataset[choice].get('ref')
+        if not os.path.exists(dataset_path):
+            os.makedirs(dataset_path)
+        if not os.path.exists(dataset_path + f"/{dataset}"):
+            api.dataset_download_files(dataset, path=dataset_path + f"/{dataset}", unzip=True)
+        return {200: f"Dataset {dataset} downloaded to {dataset_path + f'/{dataset}'}"}
+
+
+class MLManager():
+    """Class for handling all Machine Learning related functions and data."""
+    def __init__(self):
+        pass
+
+
+    def capture_data_from_user(self, ):
+        """Capture data from user.
+        """
+
+
+    def choose_model_parameters(self, dataset: str = None, dataset_path: str = None):
+        """Choose model parameters.
+
+        Args:
+            dataset (str, optional): The name of the dataset to train the model on. Defaults to None.
+            dataset_path (str, optional): The path of the dataset. Defaults to None.
+        """
+        credentials = self.get_credentials()
+        dataset_path = credentials['default_download_folder']
+        # dataset = search_kaggle_datasets(dataset=dataset, user=user)
+        dataset_path = self.download_kaggle_dataset(dataset=dataset, dataset_path=dataset_path)
+        for file in os.listdir(dataset_path[200]):
+            print(file)
+
+
+    def train_machine_learning_model(self, dataset: str = None, dataset_path: str = None):
+        """Train a machine learning modelf from a list of machine learning models.
+
+        Args:
+            dataset (str, optional): The name of the dataset to train the model on. Defaults to None.
+            dataset_path (str, optional): The path of the dataset. Defaults to None.
+        """
+        pass
+
+kaggle_handler = KaggleHandler()
+pprint(kaggle_handler.search_kaggle_datasets_with_keyword(keyword='vegetables'))
 # TODO: Fix encrypt and decrypt function
 # TODO: Add AWS Support. Think of GCP and Azure
