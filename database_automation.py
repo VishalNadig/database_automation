@@ -648,7 +648,7 @@ def list_dataset_files(dataset: str) -> List:
     return files.dataset_files
 
 
-def search_kaggle_datasets(dataset: str, user: Optional[str] = None, max_results: int = 50) -> List[Dict]:
+def search_kaggle_datasets(dataset: str, user: Optional[str] = None, max_results: int = 50, list_files: bool = False) -> List[Dict]:
     """
     Search Kaggle datasets.
 
@@ -660,18 +660,31 @@ def search_kaggle_datasets(dataset: str, user: Optional[str] = None, max_results
     out = {}
     count = 1
     for d in results[:max_results]:
-        out[count] = {
-            "ref": d.ref,
-            "title": d.title,
-            "size": getattr(d, "size", None),
-            "downloadCount": d.download_count,
-            "lastUpdated": d.last_updated,
-            "ownerName": d.creator_name,
-            "subtitle": d.subtitle,
-            "url": d.url,
-            "files": [file.name for file in list_dataset_files(dataset=dataset)]
-        }
-        count += 1
+        if list_files:
+            out[count] = {
+                "ref": d.ref,
+                "title": d.title,
+                "size": getattr(d, "size", None),
+                "downloadCount": d.download_count,
+                "lastUpdated": d.last_updated,
+                "ownerName": d.creator_name,
+                "subtitle": d.subtitle,
+                "url": d.url,
+                "files": [file.name for file in list_dataset_files(dataset=d.url.split("/datasets/")[-1])]
+            }
+            count += 1
+        else:
+            out[count] = {
+                "ref": d.ref,
+                "title": d.title,
+                "size": getattr(d, "size", None),
+                "downloadCount": d.download_count,
+                "lastUpdated": d.last_updated,
+                "ownerName": d.creator_name,
+                "subtitle": d.subtitle,
+                "url": d.url,
+            }
+            count += 1
     return out
 
 
@@ -779,5 +792,28 @@ def capture_data_from_user():
     pass
 
 
+def search_kaggle_datasets_with_keyword(keyword: str, max_results: int = 100, max_size: int = None):
+    """
+    Search Kaggle for datasets matching a keyword and return a list of dicts.
+    """
+    api = ensure_api()
+
+    results = api.dataset_list(search=keyword, max_size = max_size)
+
+    datasets = []
+    for d in results[:max_results]:
+        datasets.append({
+            "ref": d.ref,
+            "title": d.title,
+            "size": getattr(d, "size", None),
+            "downloadCount": d.download_count,
+            "lastUpdated": d.last_updated,
+            "ownerName": d.creator_name,
+            "subtitle": d.subtitle,
+            "url": d.url,
+        })
+    return datasets
+
+
 if __name__ == '__main__':
-    pprint(search_kaggle_datasets(dataset='manthansolanki/leetcode-questions'))
+    pprint(search_kaggle_datasets(dataset='vegetables', list_files=True))
