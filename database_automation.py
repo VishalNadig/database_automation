@@ -816,4 +816,4 @@ def search_kaggle_datasets_with_keyword(keyword: str, max_results: int = 100, ma
 
 
 if __name__ == '__main__':
-    pprint(search_kaggle_datasets(dataset='vegetables', list_files=True))
+    pprint(search_kaggle_datasets(dataset='torrent', list_files=False))
