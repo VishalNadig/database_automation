@@ -16,39 +16,8 @@ from sqlalchemy.exc import ProgrammingError
 from cryptography.fernet import Fernet
 from kaggle.api.kaggle_api_extended import KaggleApi
 from pprint import pprint
-from typing import Optional, List, Dict
-
-
-class Logger():
-    def __init__(self, level=logging.INFO, filename="database_handler.log"):
-        self.level = level
-        self.filename = filename
-        logging.basicConfig(
-            level=self.level,
-            filemode="a",
-            filename=self.filename,
-            format="%(asctime)s;%(levelname)s;%(message)s",
-        )
-
-
-    def get_logger(self, name: str = __name__):
-        self.name = name
-        return logging.getLogger(self.name)
-
-
-    def log(self, level: int, message: str):
-        logger = self.get_logger()
-        if level == "info":
-            logger.info(message)
-        elif level == "warning":
-            logger.warning(message)
-        elif level == "error":
-            logger.error(message)
-        elif level == "debug":
-            logger.debug(message)
-        else:
-            logger.info(message)
-
+from typing import Optional, List, Dict, Tuple
+from log_handler import Logger
 
 
 class DataBaseHandler():
@@ -67,13 +36,8 @@ class DataBaseHandler():
 
         self.HOME = os.path.expanduser('~')
         self.USERNAME = username.lower().replace(" ", "_") or input("Enter your username: ").replace(" ", "_").lower()
-        self.log_file_name = f"{self.HOME}/databse_handler.log" or input(f"Enter the path to your log file. Defaults to {self.HOME}/.database_handler.log: ")
-        logging.basicConfig(
-            level=logging.INFO,
-            filemode="a",
-            filename=self.log_file_name,
-            format="%(asctime)s;%(levelname)s;%(message)s",
-        )
+        self.logger = Logger(name="database_handler", filename=os.path.join(self.HOME, "database_handler.log"))
+        self.logger.log("Logger initialized for database_handler")
         if os.path.exists(os.path.join(self.HOME, ".aws/credentials")):
             self.CONFIG_PATH = os.path.join(self.HOME, ".aws/credentials")
             self.SESSION = boto3.Session(profile_name=self.USERNAME)
@@ -112,7 +76,7 @@ class DataBaseHandler():
         return self.args.parse_args()
 
 
-    def get_credentials(self):
+    def get_credentials(self) -> Tuple[str, dict]:
         """
         Read the YAML credentials file and return its contents.
 
@@ -123,14 +87,16 @@ class DataBaseHandler():
         elif ".aws" in self.CONFIG_PATH:
             config = ConfigParser()
             config.read(self.CONFIG_PATH)
+            self.logger.log(f"ConfigParser file loaded from {self.CONFIG_PATH}")
             return self.CONFIG_PATH, config
         else:
             with open(self.CONFIG_PATH, "r") as file:
                 yaml_file = yaml.safe_load(file)
+                self.logger.log(f"YAML file loaded from {self.CONFIG_PATH}")
                 return self.CONFIG_PATH, yaml_file
 
 
-    def create_credentials_file(self):
+    def create_credentials_file(self) -> Tuple[str, dict]:
         """
         Creates a credentials file with the user's input for username, password, and host.
 
@@ -152,6 +118,7 @@ class DataBaseHandler():
                 self.region_name = args.aws_region or input("Enter the region name. Defaults to us-east-1: ") or "us-east-1"
                 if not os.path.exists(os.path.join(self.HOME, ".aws")):
                     os.makedirs(os.path.join(self.HOME, ".aws"), exist_ok=True)
+                    self.logger.log(f"Created directory {os.path.join(self.HOME, '.aws')}")
                 self.CONFIG_PATH = os.path.join(self.HOME, ".aws/credentials")
                 with open(self.CONFIG_PATH, 'w') as file:
                     self.CONFIG[self.USERNAME] = {
@@ -160,7 +127,7 @@ class DataBaseHandler():
                                             "region": self.region_name
                                         }
                     self.CONFIG.write(file)
-                logging.info(f"Credentials file created in {self.CONFIG_PATH}")
+                self.logger.log(f"Credentials file created in {self.CONFIG_PATH}")
                 return (self.CONFIG_PATH, self.CONFIG)
             else:
                 self.warning_choice = input("Warning! You are usinga local database and hence won't get cross device functionality and device sharing. Are you ok to continue? (y/n): ")
@@ -196,7 +163,7 @@ class DataBaseHandler():
                 }}
                 with open(self.CONFIG_PATH, 'w') as file:
                     yaml.safe_dump(self.CONFIG, file)
-                logging.info(f"Credentials file created in {self.CONFIG_PATH}")
+                self.logger.log(f"Credentials file created in {self.CONFIG_PATH}")
                 return (self.CONFIG_PATH, self.CONFIG)
         elif args.database_type == "aws":
             self.aws_access_key_id = args.aws_access_key or input("Enter your AWS access key ID: ")
@@ -214,7 +181,7 @@ class DataBaseHandler():
                 self.CONFIG.write(file)
             self.SESSION = boto3.Session(profile_name=self.USERNAME)
             self.CONFIG = self.SESSION.get_credentials()
-            logging.info(f"Credentials file created in {self.CONFIG_PATH}")
+            self.logger.log(f"Credentials file created in {self.CONFIG_PATH}")
             return (self.CONFIG_PATH, self.CONFIG)
         else:
             self.CONFIG_PATH = os.path.join(self.HOME, f".{self.USERNAME}_database_credentials.yaml")
@@ -246,7 +213,7 @@ class DataBaseHandler():
             }}
             with open(self.CONFIG_PATH, 'w') as file:
                 yaml.safe_dump(data, file)
-            logging.info(f"Credentials file created in {self.CONFIG_PATH}")
+            self.logger.log(f"Credentials file created in {self.CONFIG_PATH}")
             return (self.CONFIG_PATH, self.CONFIG)
 
 
@@ -282,7 +249,7 @@ class DataBaseHandler():
         return {"password": fernet.decrypt(bytes(password, "utf-8")).decode()}
 
 
-    def create_database_function(self, database: str):
+    def create_database_function(self, database: str) -> bool:
         """
         Create a database function.
 
@@ -300,13 +267,16 @@ class DataBaseHandler():
             connection = engine.connect()
             if not database_exists(f"{URL}/{database}"):
                 connection.execute(create_database(f"{URL}/{database}"))
-                return {"Ok": "Database Created!"}
-            return {"Already Exists!": "Database Already Exists!"}
+                self.logger.log(f"Database '{database}' created successfully.")
+                return True
+            self.logger.log(f"Database '{database}' already exists.")
+            return False
         except Exception as exception:
-            return (None, exception)
+            self.logger.log(f"An error occurred while creating the database: {exception}", level='exception')
+            return (False, exception)
 
 
-    def delete_database_function(self,database: str):
+    def delete_database_function(self,database: str) -> bool:
         """
         Deletes a database with the given name.
 
@@ -326,14 +296,17 @@ class DataBaseHandler():
             with create_engine(URL).connect() as connection:
                 if database_exists(f"{URL}/{database}"):
                     connection.execute(drop_database(f"{URL}/{database}"))
-                    return {"Ok": "Database Deleted!"}
+                    self.logger.log(f"Database '{database}' deleted successfully.")
+                    return True
                 else:
-                    return {"Doesn't Exist!": "Database doesn't Exist!"}
+                    self.logger.log(f"Database '{database}' does not exist.", level='error')
+                    return False
         except Exception as exception:
-            return exception
+            self.logger.log(f"An error occurred while deleting the database: {exception}", level='exception')
+            return False
 
 
-    def parse_column_definition(self, col_name, raw_def):
+    def parse_column_definition(self, col_name, raw_def) -> Column:
         """Parses a single column's raw SQL-style string and returns a SQLAlchemy Column object."""
         # Match SQL type like VARCHAR(50), INT, etc.
         type_match = re.search(r'(\w+)(\((\d+)\))?', raw_def)
@@ -365,7 +338,7 @@ class DataBaseHandler():
         return Column(col_name, col_type, **kwargs)
 
 
-    def create_tables(self, engine, table_dict):
+    def create_tables(self, engine, table_dict) -> bool:
         """
         Create tables based on the provided dictionary of table names and their corresponding column definitions.
 
@@ -374,7 +347,7 @@ class DataBaseHandler():
             table_dict (_type_): _dictionary of table names and their corresponding column definitions_
 
         Returns:
-            None
+            bool: True if tables are created successfully, False otherwise.
 
         Example:
             >>> from sqlalchemy import create_engine, MetaData, inspect
@@ -404,9 +377,11 @@ class DataBaseHandler():
             sys.stdout.write(f"🛠️  Creating table: {table_name} {Table}")
 
         metadata.create_all(engine)
+        self.logger.log("All tables created successfully.")
+        return True
 
 
-    def delete_tables(self, database: str, *table_names: str):
+    def delete_tables(self, database: str, *table_names: str) -> Optional[Exception]:
         """
         Deletes specified tables from a given database.
 
@@ -426,23 +401,26 @@ class DataBaseHandler():
             inspector = inspect(engine)
 
             if not database_exists(URL + f"/{database}"):
-                return "database doesn't exist!"
+                self.logger.log("Database does not exist", level='error')
+                return False
 
             tables_to_delete = [table for table in table_names if table in inspector.get_table_names()]
 
             if not tables_to_delete:
-                return "Tables don't exist!"
+                self.logger.log("No specified tables exist to delete", level='error')
+                return False
 
             metadata = MetaData(bind=engine)
             for table_name in tables_to_delete:
                 table = Table(table_name, metadata, autoload=True, autoload_with=engine)
                 table.drop(bind=engine)
-
+                self.logger.log(f"Table '{table_name}' deleted successfully.")
         except Exception as exception:
+            self.logger.log("An error occurred while deleting tables", level='exception')
             return exception
 
 
-    def insert_columns(self, database_url: str, schema_changes: dict):
+    def insert_columns(self, database_url: str, schema_changes: dict) -> dict:
         """
         Inserts columns into one or more tables if they do not already exist.
 
@@ -465,7 +443,7 @@ class DataBaseHandler():
         inspector = inspect(engine)
         try:
             if not database_exists(database_url):
-                logging.exception("Database does not exist")
+                self.logger.log("Database does not exist", level='exception')
                 return {"error": "Database does not exist."}
 
             with engine.connect() as connection:
@@ -486,16 +464,16 @@ class DataBaseHandler():
                             alter_sql = f"ALTER TABLE {table} " + ", ".join(alter_clauses) + ";"
                             connection.execute(text(alter_sql))
                             results[table] = f"Inserted columns: {[col[0] for col in columns if col[0] not in existing_columns]}"
-                            logging.info(f"Inserted columns for {table}: {[col[0] for col in columns if col[0] not in existing_columns]}")
+                            self.logger.log(f"Inserted columns for {table}: {[col[0] for col in columns if col[0] not in existing_columns]}")
                         except Exception:
-                            logging.exception("An error occurred while inserting columns")
+                            self.logger.log("An error occurred while inserting columns", level='exception')
                         finally:
                             connection.close()
                     else:
                         results[table] = "All columns already exist."
 
         except Exception as e:
-            logging.exception("An error occurred while inserting columns.")
+            self.logger.log("An error occurred while inserting columns.", level='exception')
             return {"error": str(e)}
 
         finally:
@@ -533,10 +511,11 @@ class DataBaseHandler():
 
             command = f"ALTER TABLE {table_name} DROP COLUMN {column_name}"
             engine.execute(command)
+            self.logger.log(f"Column '{column_name}' deleted successfully from table '{table_name}'.")
+            return True
         except SQLAlchemyError as exception:
-            return exception
-
-        return {}
+            self.logger.log(f"An error occurred while deleting the column: {exception}", level='exception')
+            return False
 
 
     def get_data_from_database(self, database: str = None, table_name: str = None):
@@ -576,7 +555,7 @@ class DataBaseHandler():
             return exception
 
 
-    def generate_database_url(self, credentials: dict, database: str):
+    def generate_database_url(self, credentials: dict, database: str) -> str:
         """
         Generate a database URL using the given credentials and database name.
 
@@ -602,6 +581,7 @@ class DataBaseHandler():
             >>> generate_database_url(credentials, 'mydatabase')
             'mysql://root:password@localhost/mydatabase'
         """
+        self.logger.log("Generating database URL")
         return f"{credentials.get('connector')}://{credentials.get('user')}:{credentials.get('password')}@{credentials.get('hostname')}/{database}"
 
 
@@ -629,13 +609,18 @@ class DataBaseHandler():
                         self.create_database_function(database)
                     if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0 and dataframe is not None:
                         dataframe.to_sql(name=table_name, con=create_engine(url), if_exists='replace', index=False)
+                        self.logger.log(f"Dataframe inserted successfully into table '{table_name}' in database '{database}'.")
                         return {200: "Dataframe inserted successfully!"}
                     else:
+                        self.logger.log(f"Table '{table_name}' already exists in database '{database}'.")
                         return {500: "Dataframe already exists!"}
             else:
                 self.create_database_function(database)
+                self.logger.log(f"Database '{database}' created successfully.")
+                self.logger.log(f"Inserting dataframe into table '{table_name}' in database '{database}'.")
                 return self.insert_dataframe(database=database, table_name=table_name, dataframe=dataframe)
         except ProgrammingError as e:
+            self.logger.log(f"An error occurred while inserting the dataframe: {e}", level='exception')
             return e
 
 
@@ -667,15 +652,17 @@ class DataBaseHandler():
                 updated_data = pd.concat([existing_data, new_row_df], ignore_index=True)
                 updated_data = updated_data.drop_duplicates()
                 updated_data.to_sql(name=table_name, con=create_engine(url), if_exists='replace', index=False)
+                self.logger.log(f"Dataframe inserted successfully into table '{table_name}' in database '{database}'.")
                 return {200: "Dataframe inserted successfully!"}
             else:
-                return None
+                self.logger.log(f"Database '{database}' does not exist.", level='error')
+                return False
         except Exception as e:
-            logging.error(e)
+            self.logger.log(e, level='exception')
             raise e
 
 
-    def modify_column(self, database: str, table_name: str, column_name: str, command: str):
+    def modify_column(self, database: str, table_name: str, column_name: str, command: str) -> bool:
         """
         Modifies a column in a database table.
 
@@ -686,7 +673,7 @@ class DataBaseHandler():
             command (str): The modification command to execute.
 
         Returns:
-            str: If the modification is successful, returns an empty string. Otherwise, returns an error message.
+            bool: If the modification is successful, return True, else return False.
         """
         try:
             credentials = self.get_credentials()
@@ -698,15 +685,20 @@ class DataBaseHandler():
                     if table_name in inspector.get_table_names():
                         command = f"ALTER TABLE {table_name} MODIFY {column_name} {command}"
                         connection.execute(command)
+                        self.logger.log(f"Column '{column_name}' in table '{table_name}' modified successfully.")
+                        return True
                     else:
-                        return "table doesn't exist"
+                        self.logger.log(f"Table '{table_name}' does not exist in database '{database}'.", level='error')
+                        return False
                 else:
-                    return "Database doesn't exist"
+                    self.logger.log(f"Database '{database}' does not exist.", level='error')
+                    return False
         except Exception as exception:
-            return str(exception)
+            self.logger.log(f"An error occurred: {exception}", level='exception')
+            return exception
 
 
-    def inspect_columns(self, database: str, table: str, *column: str):
+    def inspect_columns(self, database: str, table: str, *column: str) -> list | str | Exception:
         """
         Get information about columns in a database table.
 
@@ -738,7 +730,7 @@ class DataBaseHandler():
             return exception
 
 
-    def query(self, database: str, table_name: str, filter_condition: str):
+    def query(self, database: str, table_name: str, filter_condition: str) -> list | Exception:
         """
         Executes a query on the specified database table using the provided filter condition.
 
@@ -762,7 +754,7 @@ class DataBaseHandler():
             return exception
 
 
-    def check_for_duplicates(self, database: str, table_name: str, column_name: str):
+    def check_for_duplicates(self, database: str, table_name: str, column_name: str) -> list:
         """
         Check for duplicates in a specific column of a table in a given database.
 
@@ -777,14 +769,15 @@ class DataBaseHandler():
 
         credentials = self.get_credentials()
         URL = f"{credentials['CONNECTOR']}://{credentials['USER']}:{credentials['PASSWORD']}@{credentials['HOSTNAME']}"
-        with create_engine(f"{URL}/{database}").connect() as connection:
-            inspector = inspect(connection)
-            if database_exists(f"{URL}/{database}") and table_name in inspector.get_table_names():
-                query = f"SELECT {column_name} FROM {table_name} GROUP BY {column_name} HAVING COUNT({column_name}) > 1"
-                return connection.execute(query).fetchall()
+        if database_exists(URL):
+            with create_engine(f"{URL}/{database}").connect() as connection:
+                inspector = inspect(connection)
+                if database_exists(f"{URL}/{database}") and table_name in inspector.get_table_names():
+                    query = f"SELECT {column_name} FROM {table_name} GROUP BY {column_name} HAVING COUNT({column_name}) > 1"
+                    return connection.execute(query).fetchall()
 
 
-    def delete_duplicates(self, dataframe: pd.DataFrame):
+    def delete_duplicates(self, dataframe: pd.DataFrame) -> pd.DataFrame:
         """
         Delete duplicates from the given dataframe.
 
@@ -799,8 +792,8 @@ class DataBaseHandler():
                 if file.endswith(".csv"):
                     dataframe  = self.delete_duplicates(os.path.join(dataframe, file))
         if isinstance(dataframe, pd.DataFrame):
-            sys.stdout.write(dataframe)
-            sys.stdout.write("Not a pandas dataframe, trying to convert to pandas dataframe\n")
+            self.logger.log(dataframe)
+            self.logger.log("Not a pandas dataframe, trying to convert to pandas dataframe\n", level='warning')
             dataframe = pd.DataFrame(pd.read_csv(dataframe, encoding="cp1252"))
             dataframe = dataframe.drop_duplicates()
             return dataframe
@@ -809,7 +802,7 @@ class DataBaseHandler():
             return dataframe
 
 
-    def add_pk(self, database: str, table_name: str, constraint_name: str, column_name: str, delete_constraint: bool):
+    def add_pk(self, database: str, table_name: str, constraint_name: str, column_name: str, delete_constraint: bool) -> bool:
         """
         Add constraints to a table in a given database.
 
@@ -820,34 +813,34 @@ class DataBaseHandler():
             column_name (str): The name of the column to be constrained.
 
         Returns:
-            None
+            bool: True if the constraint is added successfully, False otherwise.
         """
         url = self.generate_database_url(self.get_credentials(), database=database)
         try:
             if database_exists(url):
                 with create_engine(url).connect() as connection:
-                    if not database_exists(url):
-                        self.create_database_function(database)
                     if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0:
-                        sys.stdout.write(f"The table '{table_name}' does not exist!\n")
-                        return None
+                        self.logger.log(f"The table '{table_name}' does not exist!\n", level='error')
+                        return False
                     else:
                         existing_data = pd.read_sql_table(table_name, con=create_engine(url))
                         columns = existing_data.columns
                         if column_name in [column for column in columns]:
                             connection.execute(text(f"ALTER TABLE {table_name} ADD CONSTRAINT {constraint_name} PRIMARY KEY (`{column_name}`)"))
-                            sys.stdout.write("Constraint added successfully!\n")
+                            self.logger.log(f"Primary key added successfully to column '{column_name}' in table '{table_name}' in database '{database}'.")
+                            return True
                         else:
-                            sys.stdout.write(f"Column does not exist!\nHere are the existing columns: {[column for column in columns]}\n")
-                            return None
+                            self.logger.log(f"The column '{column_name}' does not exist in table '{table_name}'.", level='error')
+                            return False
             else:
-                sys.stdout.write(f"The database '{database}' does not exist!\n")
-                return None
+                self.logger.log(f"The database '{database}' does not exist!\n", level='error')
+                return False
         except Exception as e:
-            sys.stdout.write(str(e))
+            self.logger.log(f"An error occurred while adding the primary key: {e}", level='exception')
+            return False
 
 
-    def delete_pk(self, database: str, table_name: str):
+    def delete_pk(self, database: str, table_name: str) -> bool:
         """
         Delete constraints from a table in a given database.
 
@@ -857,28 +850,27 @@ class DataBaseHandler():
             constraint_name (str): The name of the constraint.
 
         Returns:
-            None
+            bool: True if the constraint is deleted successfully, False otherwise.
         """
         url = self.generate_database_url(self.get_credentials(), database=database)
         try:
             if database_exists(url):
                 with create_engine(url).connect() as connection:
-                    if not database_exists(url):
-                        self.create_database_function(database)
                     if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0:
-                        sys.stdout.write(f"The table '{table_name}' does not exist!\n")
-                        return None
+                        self.logger.log(f"The table '{table_name}' does not exist!\n", level='error')
+                        return False
                     else:
                         connection.execute(text(f"ALTER TABLE {table_name} DROP PRIMARY KEY"))
-                        sys.stdout.write("PRIMARY KEY deleted successfully!\n")
+                        self.logger.log(f"Primary key deleted successfully from table '{table_name}' in database '{database}'.")
+                        return True
             else:
-                sys.stdout.write(f"The database '{database}' does not exist!\n")
-                return None
+                self.logger.log(f"The database '{database}' does not exist!\n", level='error')
+                return False
         except ProgrammingError as e:
-            sys.stdout.write(str(e) + "\n")
+            self.logger.log(f"An error occurred while deleting the primary key: {e}", level='exception')
 
 
-    def upload_dataset_to_database(self, database: str = None, table_name: str = None, dataset: str = None, user: str = None, dataset_path: str = None):
+    def upload_dataset_to_database(self, database: str = None, table_name: str = None, dataset: str = None, user: str = None, dataset_path: str = None) -> bool:
         """
         Uploads a dataset to a database table.
 
@@ -890,19 +882,25 @@ class DataBaseHandler():
             dataset_path (str): The path to the dataset on the local machine.
 
         Returns:
-            None
+            bool: True if the dataset is uploaded successfully, False otherwise.
         """
         credentials = self.get_credentials()
         dataset_path = credentials['default_download_folder'] + "/datasets"
         if os.path.exists(dataset_path):
             sys.stdout.write(f"The folder '{dataset_path}' does not exist!\n")
-            return None
-        for file in os.listdir(dataset_path + f"/{str(dataset).split('/')[-1]}"):
-            sys.stdout.write(file)
-            self.insert_dataframe(database=database, table_name=table_name, dataframe=dataset_path + f"/{str(dataset).split('/')[-1]}/" + file)
+            return False
+        try:
+            for file in os.listdir(dataset_path + f"/{str(dataset).split('/')[-1]}"):
+                sys.stdout.write(file)
+                self.insert_dataframe(database=database, table_name=table_name, dataframe=dataset_path + f"/{str(dataset).split('/')[-1]}/" + file)
+                self.logger.log(f"Dataset '{dataset}' uploaded successfully to table '{table_name}' in database '{database}'.")
+            return True
+        except Exception as e:
+            self.logger.log(f"An error occurred while uploading the dataset: {e}", level='exception')
+            return False
 
 
-    def download_dataset_from_database(self, database: str, table_name: str, download_path: str):
+    def download_dataset_from_database(self, database: str, table_name: str, download_path: str) -> None:
         """
         Downloads a dataset from a database table.
 
@@ -912,26 +910,26 @@ class DataBaseHandler():
             download_path (str): The path to download the dataset to.
 
         Returns:
-            None
+            bool: True if the dataset is downloaded successfully, False otherwise.
         """
         credentials = self.get_credentials()
         url = self.generate_database_url(credentials, database=database)
         try:
             if database_exists(url):
                 with create_engine(url).connect() as connection:
-                    if not database_exists(url):
-                        self.create_database_function(database)
                     if len(connection.execute(text(f"SHOW TABLES IN {database}")).fetchall()) == 0:
-                        sys.stdout.write(f"The table '{table_name}' does not exist!\n")
-                        return None
+                        self.logger.log(f"The table '{table_name}' does not exist!\n", level='error')
+                        return False
                     else:
                         pd.read_sql_table(table_name, con=create_engine(url)).to_csv(credentials['default_download_folder'] + "/" + download_path)
+                        self.logger.log(f"Dataset from table '{table_name}' in database '{database}' downloaded successfully to '{download_path}'.")
+                        return True
             else:
-                sys.stdout.write(f"The database '{database}' does not exist!\n")
-                return None
+                self.logger.log(f"The database '{database}' does not exist!\n", level='error')
+                return False
         except Exception as e:
-            sys.stdout.write(str(e) + "\n")
-            return None
+            self.logger.log(f"An error occurred while downloading the dataset: {e}", level='exception')
+            return False
 
 
 class KaggleHandler():
@@ -1128,8 +1126,8 @@ class MLManager():
         """
         pass
 
+
 kaggle_handler = KaggleHandler()
 # pprint(kaggle_handler.search_kaggle_datasets_with_keyword(keyword='vegetables'))
-pprint(Logger().get_logger())
 # TODO: Fix encrypt and decrypt function
 # TODO: Add AWS Support. Think of GCP and Azure
