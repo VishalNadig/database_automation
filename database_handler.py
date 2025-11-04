@@ -48,7 +48,7 @@ class DatabaseHandler():
             self.CONFIG_PATH, self.CONFIG = self.create_credentials_file()
 
 
-    def get_args(self):
+    def get_args(self) -> argparse.Namespace:
         """
         Read the command line arguments and return them.
 
@@ -56,7 +56,7 @@ class DatabaseHandler():
             None
 
         Returns:
-            None
+            argparse.Namespace: Namespace of all the flags used in the CLI.
         """
         self.args = argparse.ArgumentParser(description='Fitbit API')
         self.args.add_argument('-u', '--username', help='Username for Fitbit API')
@@ -92,6 +92,58 @@ class DatabaseHandler():
                 return self.CONFIG_PATH, yaml_file
 
 
+    def local_database_file_handler(self, args: argparse.Namespace) -> Tuple[str, dict]:
+        self.CONFIG_PATH = os.path.join(self.HOME, f".{self.USERNAME}_database_credentials.yaml")
+        username = args.username or input("Enter your database username. Default value is root: ") or "root"
+        password = args.password or input("Enter your database password: ")
+        while not password:
+            password = input("Password cannot be empty. Enter your password: ")
+        host = args.hostname or input("Enter your host URL for the database. Default value is localhost: ") or "localhost"
+        port = args.port or input("Enter your port value for your database. Default value is 3306: ") or "3306"
+        connector = args.connector or input("Enter your connector. List of connectors: \n[1] mysql+mysqlconnector\n[2] postgresql+psycopg2\n[3] mssql+pyodbc\n[4] sqlite\nDefault value is mysqlconnector: ") or "mysql+mysqlconnector"
+        match connector:
+            case "1":
+                connector = "mysql"
+            case "2":
+                connector = "postgresql"
+            case "3":
+                connector = "mssql+pyodbc"
+            case "4":
+                connector = "sqlite"
+            case _:
+                connector = "mysql+mysqlconnector"
+        self.CONFIG = {self.USERNAME.replace(" ", "_").lower(): {
+            "user": username,
+            "password": password,
+            "hostname": host,
+            "port": port,
+            "connector": connector,
+        }}
+        with open(self.CONFIG_PATH, 'w') as file:
+            yaml.safe_dump(self.CONFIG, file)
+        self.logger.log(f"Credentials file created in {self.CONFIG_PATH}")
+        return (self.CONFIG_PATH, self.CONFIG)
+
+
+    def aws_credential_file_handler(self, args) -> Tuple[str, dict]:
+        self.aws_access_key_id = args.aws_access_key or input("Enter your AWS access key ID: ")
+        self.aws_secret_access_key = args.aws_secret_key or input("Enter your AWS secret access key: ")
+        self.region_name = args.aws_region or input("Enter the region name. Defaults to us-east-1: ") or "us-east-1"
+        if not os.path.exists(os.path.join(self.HOME, ".aws")):
+            os.makedirs(os.path.join(self.HOME, ".aws"), exist_ok=True)
+            self.logger.log(f"Created directory {os.path.join(self.HOME, '.aws')}")
+        self.CONFIG_PATH = os.path.join(self.HOME, ".aws/credentials")
+        with open(self.CONFIG_PATH, 'w') as file:
+            self.CONFIG[self.USERNAME] = {
+                                    "aws_access_key_id": self.aws_access_key_id,
+                                    "aws_secret_access_key": self.aws_secret_access_key,
+                                    "region": self.region_name
+                                }
+            self.CONFIG.write(file)
+        self.logger.log(f"Credentials file created in {self.CONFIG_PATH}")
+        return (self.CONFIG_PATH, self.CONFIG)
+
+
     def create_credentials_file(self) -> Tuple[str, dict]:
         """
         Creates a credentials file with the user's input for username, password, and host.
@@ -109,108 +161,18 @@ class DatabaseHandler():
             while self.CHOICE.lower() not in ['y', 'n']:
                 self.CHOICE = input("Do you want to connect to an AWS DynamoDB or use a local database. Choosing 'n' will use a local database instead (y/n)?: ")
             if self.CHOICE == 'y':
-                self.aws_access_key_id = args.aws_access_key or input("Enter your AWS access key ID: ")
-                self.aws_secret_access_key = args.aws_secret_key or input("Enter your AWS secret access key: ")
-                self.region_name = args.aws_region or input("Enter the region name. Defaults to us-east-1: ") or "us-east-1"
-                if not os.path.exists(os.path.join(self.HOME, ".aws")):
-                    os.makedirs(os.path.join(self.HOME, ".aws"), exist_ok=True)
-                    self.logger.log(f"Created directory {os.path.join(self.HOME, '.aws')}")
-                self.CONFIG_PATH = os.path.join(self.HOME, ".aws/credentials")
-                with open(self.CONFIG_PATH, 'w') as file:
-                    self.CONFIG[self.USERNAME] = {
-                                            "aws_access_key_id": self.aws_access_key_id,
-                                            "aws_secret_access_key": self.aws_secret_access_key,
-                                            "region": self.region_name
-                                        }
-                    self.CONFIG.write(file)
-                self.logger.log(f"Credentials file created in {self.CONFIG_PATH}")
-                return (self.CONFIG_PATH, self.CONFIG)
+                return self.aws_credential_file_handler(args=args)
             else:
-                self.warning_choice = input("Warning! You are usinga local database and hence won't get cross device functionality and device sharing. Are you ok to continue? (y/n): ")
+                self.warning_choice = input("Warning! You are using a local database and hence won't get cross device functionality and device sharing. Are you ok to continue? (y/n): ")
                 while self.warning_choice.lower() not in ["y", "n"]:
                     self.warning_choice = input("Warning! You are using a local database and hence won't get cross device functionalit. Are you ok to continue? (y/n): ")
                 if self.warning_choice == "n":
                     return "Not creating the database. Exiting..."
-                self.CONFIG_PATH = os.path.join(self.HOME, f".{self.USERNAME}_database_credentials.yaml")
-                username = args.username or input("Enter your database username. Default value is root: ") or "root"
-                password = args.password or input("Enter your database password: ")
-                while not password:
-                    password = input("Password cannot be empty. Enter your password: ")
-                host = args.hostname or input("Enter your host URL for the database. Default value is localhost: ") or "localhost"
-                port = args.port or input("Enter your port value for your database. Default value is 3306: ") or "3306"
-                connector = args.connector or input("Enter your connector. List of connectors: \n[1] mysql+mysqlconnector\n[2] postgresql+psycopg2\n[3] mssql+pyodbc\n[4] sqlite\nDefault value is mysqlconnector: ") or "mysql+mysqlconnector"
-                match connector:
-                    case "1":
-                        connector = "mysql"
-                    case "2":
-                        connector = "postgresql"
-                    case "3":
-                        connector = "mssql+pyodbc"
-                    case "4":
-                        connector = "sqlite"
-                    case _:
-                        connector = "mysql+mysqlconnector"
-                self.CONFIG = {self.USERNAME.replace(" ", "_").lower(): {
-                    "user": username,
-                    "password": password,
-                    "hostname": host,
-                    "port": port,
-                    "connector": connector,
-                }}
-                with open(self.CONFIG_PATH, 'w') as file:
-                    yaml.safe_dump(self.CONFIG, file)
-                self.logger.log(f"Credentials file created in {self.CONFIG_PATH}")
-                return (self.CONFIG_PATH, self.CONFIG)
+                return self.local_database_file_handler(args=args)
         elif args.database_type == "aws":
-            self.aws_access_key_id = args.aws_access_key or input("Enter your AWS access key ID: ")
-            self.aws_secret_access_key = args.aws_secret_key or input("Enter your AWS secret access key: ")
-            self.region_name = args.aws_region or input("Enter the region name. Defaults to us-east-1: ") or "us-east-1"
-            if not os.path.exists(os.path.join(self.HOME, ".aws")):
-                os.makedirs(os.path.join(self.HOME, ".aws"), exist_ok=True)
-            self.CONFIG_PATH = os.path.join(self.HOME, ".aws/credentials")
-            with open(self.CONFIG_PATH, 'w') as file:
-                self.CONFIG[self.USERNAME] = {
-                                        "aws_access_key_id": self.aws_access_key_id,
-                                        "aws_secret_access_key": self.aws_secret_access_key,
-                                        "region": self.region_name
-                                    }
-                self.CONFIG.write(file)
-            self.SESSION = boto3.Session(profile_name=self.USERNAME)
-            self.CONFIG = self.SESSION.get_credentials()
-            self.logger.log(f"Credentials file created in {self.CONFIG_PATH}")
-            return (self.CONFIG_PATH, self.CONFIG)
+            return self.aws_credential_file_handler(args=args)
         else:
-            self.CONFIG_PATH = os.path.join(self.HOME, f".{self.USERNAME}_database_credentials.yaml")
-            username = args.username or input("Enter your database username. Default value is root: ") or "root"
-            password = args.password or input("Enter your database password: ")
-            while not password:
-                password = input("Password cannot be empty. Enter your password: ")
-            host = args.hostname or input("Enter your host URL for the database. Default value is localhost: ") or "localhost"
-            port = args.port or input("Enter your port value for your database. Default value is 3306: ") or "3306"
-            connector = args.connector or input("Enter your connector. List of connectors: \n[1] mysql+mysqlconnector\n[2] postgresql+psycopg2\n[3] mssql+pyodbc\n[4] sqlite\nDefault value is mysqlconnector: ") or "mysql+mysqlconnector"
-            match connector:
-                case "1":
-                    connector = "mysql"
-                case "2":
-                    connector = "postgresql"
-                case "3":
-                    connector = "mssql+pyodbc"
-                case "4":
-                    connector = "sqlite"
-                case _:
-                    connector = "mysql+mysqlconnector"
-            data = {self.USERNAME.replace(' ', '_').lower(): {
-
-                "user": username,
-                "password": password,
-                "hostname": host,
-                "port": port,
-                "connector": connector,
-            }}
-            with open(self.CONFIG_PATH, 'w') as file:
-                yaml.safe_dump(data, file)
-            self.logger.log(f"Credentials file created in {self.CONFIG_PATH}")
-            return (self.CONFIG_PATH, self.CONFIG)
+            return self.local_database_file_handler(args=args)
 
 
     def encrypt_data(self) -> dict:
