@@ -13,6 +13,14 @@ from log_handler import Logger
 
 class KaggleHandler():
     """Class for handling all Kaggle related functions and data."""
+    def __repr__(self):
+        return f"KaggleHandler(username = <username>)"
+
+
+    def __str__(self):
+        return "KaggleHandler class that browses Kaggle and downloads datasets from https://www.kaggle.com/datasets/ "
+
+
     def __init__(self, username: str = None):
         self.logger = Logger(name="kaggle_handler", filename="database_handler.log")
         self.HOME = os.path.expanduser('~')
@@ -200,8 +208,9 @@ class KaggleHandler():
         choice: str = input("Enter the dataset index to download: ")
         if not os.path.exists(dataset_path):
             os.makedirs(dataset_path)
-        if choice == "all" or "a":
+        if choice == "all" or choice == "a":
             for key in dataset:
+                print(choice, "INDEX")
                 dataset_: str = dataset[int(key)].get('ref')
                 if not os.path.exists(dataset_path + f"/{dataset_}"):
                     api.dataset_download_files(dataset_, path=dataset_path + f"/{dataset_}", unzip=True)
