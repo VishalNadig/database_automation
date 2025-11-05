@@ -36,7 +36,7 @@ class DatabaseHandler():
             self.SESSION = boto3.Session(profile_name=self.USERNAME)
             self.CONFIG = self.SESSION.get_credentials()
         elif os.path.exists(os.path.join(self.HOME, f".{self.USERNAME}_database_credentials.yaml")):
-            self.CONFIG_PATH = os.path.join(self.HOME, f".{self.USERNAME}_database_credentials")
+            self.CONFIG_PATH = os.path.join(self.HOME, f".{self.USERNAME}_database_credentials.yaml")
             with open(os.path.join(self.HOME, f".{self.USERNAME}_database_credentials.yaml"), "r") as file:
                 self.CONFIG = yaml.safe_load(file)
         else:
