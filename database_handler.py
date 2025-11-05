@@ -16,6 +16,15 @@ from log_handler import Logger
 
 
 class DatabaseHandler():
+    """Database Handler class that contains all the functions to manipulate data and interact with databases using sqlalchemy"""
+    def __repr__(self):
+        return "DatabaseHandler(username='insert_your_name')"
+
+
+    def __str__(self):
+        return "Database Handler class that contains all the functions to manipulate data and interact with databases using sqlalchemy"
+
+
     def __init__(self, username: str = None):
         self.METADATA = MetaData()
         self.sqlalchemy_type_map = {
