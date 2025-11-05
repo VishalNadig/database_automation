@@ -31,6 +31,8 @@ class DatabaseHandler():
         self.database_connector = {}
         self.HOME = os.path.expanduser('~')
         self.USERNAME = username.lower().replace(" ", "_") or input("Enter your username: ").replace(" ", "_").lower()
+        self.logger = Logger(name="database_handler", filename=os.path.join(self.HOME, "database_handler.log"))
+        self.logger.log("Logger initialized for database_handler")
         if os.path.exists(os.path.join(self.HOME, ".aws/credentials")):
             self.CONFIG_PATH = os.path.join(self.HOME, ".aws/credentials")
             self.SESSION = boto3.Session(profile_name=self.USERNAME)
@@ -44,8 +46,6 @@ class DatabaseHandler():
         if self.CONFIG_PATH is None:
             self.CONFIG_PATH, self.CONFIG = self.create_credentials_file()
         self.CREDENTIALS = self.get_credentials()
-        self.logger = Logger(name="database_handler", filename=os.path.join(self.HOME, "database_handler.log"))
-        self.logger.log("Logger initialized for database_handler")
 
 
     def get_args(self) -> argparse.Namespace:
