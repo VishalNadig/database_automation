@@ -174,7 +174,7 @@ class KaggleHandler():
         return datasets
 
 
-    def download_kaggle_dataset(self, dataset: str = None, dataset_path: str = None) -> dict:
+    def download_kaggle_dataset(self, dataset: str = None, dataset_path: str = None, dataset_link: str = None) -> dict:
         """
         Download a Kaggle dataset.
 
@@ -185,21 +185,30 @@ class KaggleHandler():
         Returns:
             bool: True if the dataset is downloaded successfully, False otherwise.
         """
-        if not dataset:
-            if not self.args.dataset_name:
+
+        api = self.ensure_api()
+        if dataset_path is None:
+            dataset_path = self.get_credentials()[1].get('credentials').get('default_download_folder')
+        if dataset_link:
+            dataset_ = dataset_link.split("/")[-1]
+            dataset_path = os.path.join(self.get_credentials()[1].get('credentials').get('default_download_folder'), dataset_link)
+            dataset_to_download = self.search_kaggle_datasets(dataset=dataset_)[1].get('ref')
+            print(dataset_to_download)
+            api.dataset_download_files(dataset=dataset_to_download, path=dataset_path, unzip=True)
+            return f"Dataset {dataset_to_download} Downloaded to {dataset_path}"
+        elif not self.args.dataset_name:
+            if not dataset:
                 raise ValueError("Please enter the name of the dataset")
+        else:
             dataset = self.args.dataset_name
         if not os.path.exists(os.path.expanduser('~') + "/.kaggle") or not os.path.isfile(os.path.expanduser('~') + "/.kaggle/kaggle.json"):
             sys.stdout.write("kaggle.json not found!\n")
             self.logger.error("kaggle.json not found!")
             return False
 
-        api = self.ensure_api()
         self.logger.log(f"Authorized {self.USERNAME}! Kaggle API authenticated successfully.")
         sys.stdout.write(f"Authorized!\n\n")
 
-        if dataset_path is None:
-            dataset_path = self.get_credentials()[1].get('credentials').get('default_download_folder')
         print("Searching for", dataset + "...")
         dataset = self.search_kaggle_datasets(dataset=dataset)
         if len(dataset) == 0:
@@ -226,5 +235,5 @@ class KaggleHandler():
 
 if __name__ == "__main__":
     kaggle_handler = KaggleHandler(username='vishal_nadig')
-    dataset_path = kaggle_handler.download_kaggle_dataset(dataset='hydroponic')
+    dataset_path = kaggle_handler.download_kaggle_dataset(dataset_link="itsmonir31/hydroponics-datasets")
     pprint(dataset_path)
