@@ -189,11 +189,12 @@ class KaggleHandler():
         api = self.ensure_api()
         if dataset_path is None:
             dataset_path = self.get_credentials()[1].get('credentials').get('default_download_folder')
-        if dataset_link:
+        if dataset_link and not self.args.dataset_name:
             dataset_ = dataset_link.split("/")[-1]
+            if len(dataset_link.split("/")) != 2:
+                dataset_link = dataset_link.split("/datasets/")[-1]
             dataset_path = os.path.join(self.get_credentials()[1].get('credentials').get('default_download_folder'), dataset_link)
             dataset_to_download = self.search_kaggle_datasets(dataset=dataset_)[1].get('ref')
-            print(dataset_to_download)
             api.dataset_download_files(dataset=dataset_to_download, path=dataset_path, unzip=True)
             return f"Dataset {dataset_to_download} Downloaded to {dataset_path}"
         elif not self.args.dataset_name:
@@ -208,8 +209,9 @@ class KaggleHandler():
 
         self.logger.log(f"Authorized {self.USERNAME}! Kaggle API authenticated successfully.")
         sys.stdout.write(f"Authorized!\n\n")
-
-        print("Searching for", dataset + "...")
+        if len(dataset.split("/")) != 2:
+            dataset = dataset.split("/datasets/")[-1]
+        sys.stdout.write(f"Searching for {dataset}" + "...\n")
         dataset = self.search_kaggle_datasets(dataset=dataset)
         if len(dataset) == 0:
             return "No datasets found!"
@@ -219,7 +221,6 @@ class KaggleHandler():
             os.makedirs(dataset_path)
         if choice == "all" or choice == "a":
             for key in dataset:
-                print(choice, "INDEX")
                 dataset_: str = dataset[int(key)].get('ref')
                 if not os.path.exists(dataset_path + f"/{dataset_}"):
                     api.dataset_download_files(dataset_, path=dataset_path + f"/{dataset_}", unzip=True)
@@ -235,5 +236,4 @@ class KaggleHandler():
 
 if __name__ == "__main__":
     kaggle_handler = KaggleHandler(username='vishal_nadig')
-    dataset_path = kaggle_handler.download_kaggle_dataset(dataset_link="itsmonir31/hydroponics-datasets")
-    pprint(dataset_path)
+    dataset_path = kaggle_handler.download_kaggle_dataset(dataset_link="https://www.kaggle.com/datasets/itsmonir31/hydroponics-datasets")
